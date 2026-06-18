@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Úm ba la mở ra mớ task</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+  import { getDatabase, ref, onValue, set, push, remove, update } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+
+  // ──────────────────────────────────────────────
+  // 🔥 FIREBASE CONFIG — điền thông tin của bạn vào đây
+  // Vào https://console.firebase.google.com → tạo project → Project settings → Add app (Web)
+  // ──────────────────────────────────────────────
+  const firebaseConfig = {
+    apiKey: "AIzaSyAGpJfTJDduRls6oIkOWDJnxTQz8hjyBBc",
+    authDomain: "eb-ic-ee-tracker.firebaseapp.com",
+    databaseURL: "https://eb-ic-ee-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "eb-ic-ee-tracker",
+    storageBucket: "eb-ic-ee-tracker.firebasestorage.app",
+    messagingSenderId: "225009404292",
+    appId: "1:225009404292:web:289516247123ed562275d1"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  window.__db = db;
+  window.__dbRef = ref;
+  window.__dbOps = { onValue, set, push, remove, update };
+  window.__firebaseReady = true;
+  document.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<style>
+  :root {
+    --ink: #14161E;
+    --muted: #7B808C;
+    --line: rgba(20,22,30,.1);
+    --panel: #FFFFFF;
+    --bg: #F1F1EE;
+    --shadow: 0 1px 4px rgba(20,22,30,.07), 0 2px 12px rgba(20,22,30,.04);
+    --shadow-lift: 0 4px 20px rgba(20,22,30,.11), 0 1px 4px rgba(20,22,30,.07);
+    --r: 14px;
+    --r-lg: 18px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* ─── TOPBAR ─── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px;
+    height: 56px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 0 var(--line);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+  }
+  .logo-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #E84393, #F97316);
+    display: grid; place-items: center;
+  }
+  .logo-icon svg { color: #fff; }
+  .topbar-spacer { flex: 1; }
+  .sync-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 99px;
+    background: rgba(20,22,30,.05);
+  }
+  .sync-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #E5E7EB;
+    transition: background .3s;
+  }
+  .sync-dot.live { background: #22C55E; }
+  .sync-dot.syncing { background: #F59E0B; animation: pulse 1s infinite; }
+  .sync-dot.error { background: #EF4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .btn-icon {
+    width: 34px; height: 34px;
+    border: 0; background: transparent;
+    border-radius: 9px;
+    display: grid; place-items: center;
+    cursor: pointer; color: var(--muted);
+    transition: .12s;
+  }
+  .btn-icon:hover { background: rgba(20,22,30,.07); color: var(--ink); }
+
+  /* ─── BOARD ─── */
+  .board-wrap {
+    padding: 24px;
+    min-height: calc(100vh - 56px);
+  }
+  .board-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .board-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+  }
+  .board-count {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    background: rgba(20,22,30,.07);
+    padding: 2px 8px;
+    border-radius: 99px;
+  }
+  .board-header-spacer { flex: 1; }
+  .btn-add-col {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 10px;
+    border: 1px dashed rgba(20,22,30,.2);
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: .12s;
+  }
+  .btn-add-col:hover { border-color: #E84393; color: #E84393; background: rgba(232,67,147,.04); }
+
+  .board {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    overflow-x: auto;
+    padding-bottom: 16px;
+  }
+
+  /* ─── COLUMN ─── */
+  .col {
+    flex: 0 0 296px;
+    min-width: 0;
+    background: var(--panel);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    transition: .15s;
+  }
+  .col.drag-over {
+    border-color: #E84393;
+    box-shadow: 0 0 0 3px rgba(232,67,147,.14);
+  }
+  .col-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px 10px;
+  }
+  .col-dot {
+    width: 10px; height: 10px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .col-title-input {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 800;
+    color: var(--ink);
+    letter-spacing: -.01em;
+    outline: none;
+    cursor: pointer;
+  }
+  .col-title-input:focus { cursor: text; }
+  .col-count {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--muted);
+    background: rgba(20,22,30,.06);
+    padding: 1px 7px;
+    border-radius: 99px;
+    font-variant-numeric: tabular-nums;
+  }
+  .col-menu-btn {
+    width: 26px; height: 26px;
+    border: 0; background: transparent;
+    border-radius: 7px;
+    display: grid; place-items: center;
+    cursor: pointer; color: var(--muted);
+    opacity: 0;
+    transition: .12s;
+  }
+  .col:hover .col-menu-btn { opacity: 1; }
+  .col-menu-btn:hover { background: rgba(20,22,30,.07); color: var(--ink); }
+
+  /* ─── CARDS ─── */
+  .cards {
+    padding: 0 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-height: 40px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 12px 14px;
+    cursor: grab;
+    transition: .12s;
+    position: relative;
+    box-shadow: var(--shadow);
+  }
+  .card:hover { transform: translateY(-1px); box-shadow: var(--shadow-lift); }
+  .card.dragging { opacity: .4; transform: scale(.97) rotate(-.5deg); cursor: grabbing; }
+  .card.done { opacity: .65; background: #FAFAF9; box-shadow: none; }
+  .card.done:hover { opacity: .85; }
+  .card.done .card-title { text-decoration: line-through; color: var(--muted); }
+
+  .card-check {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 20px; height: 20px;
+    border-radius: 6px;
+    border: 1.7px solid #CFD2DA;
+    background: #fff;
+    display: grid; place-items: center;
+    cursor: pointer;
+    padding: 0;
+    transition: .12s;
+  }
+  .card-check:hover { border-color: #22C55E; }
+  .card.done .card-check { background: #22C55E; border-color: #22C55E; }
+  .card.done .card-check::after {
+    content: '';
+    width: 10px; height: 6px;
+    border: 2px solid #fff;
+    border-top: 0; border-right: 0;
+    transform: rotate(-45deg) translateY(-1px);
+  }
+
+  .card-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--ink);
+    margin-right: 24px;
+    word-break: break-word;
+  }
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .card-tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 99px;
+    background: rgba(232,67,147,.1);
+    color: #E84393;
+  }
+  .card-assignee {
+    width: 22px; height: 22px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #E84393, #F97316);
+    display: grid; place-items: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+    cursor: default;
+    title: attr(title);
+  }
+  .card-date {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 3px;
+  }
+  .card-date.overdue { color: #EF4444; }
+  .card-delete-btn {
+    position: absolute;
+    bottom: 10px; right: 10px;
+    width: 22px; height: 22px;
+    border: 0; background: transparent;
+    border-radius: 6px;
+    display: grid; place-items: center;
+    cursor: pointer; color: var(--muted);
+    opacity: 0;
+    transition: .12s;
+    font-size: 14px;
+  }
+  .card:hover .card-delete-btn { opacity: 1; }
+  .card-delete-btn:hover { background: rgba(239,68,68,.1); color: #EF4444; }
+
+  /* ─── ADD CARD ─── */
+  .add-card-area {
+    padding: 8px 10px 12px;
+  }
+  .add-card-input {
+    width: 100%;
+    border: 1px dashed var(--line);
+    background: #FBFBFA;
+    border-radius: 11px;
+    padding: 9px 12px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    outline: none;
+    resize: none;
+    transition: .12s;
+  }
+  .add-card-input:focus {
+    border-style: solid;
+    border-color: #E84393;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(232,67,147,.1);
+  }
+  .add-card-input::placeholder { color: var(--muted); }
+  .add-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 7px;
+  }
+  .btn-confirm {
+    flex: 1;
+    padding: 7px;
+    border: 0;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #E84393, #F97316);
+    color: #fff;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: .12s;
+  }
+  .btn-confirm:hover { opacity: .9; transform: translateY(-1px); }
+  .btn-cancel {
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: transparent;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: .12s;
+  }
+  .btn-cancel:hover { background: rgba(20,22,30,.06); color: var(--ink); }
+
+  .btn-add-card {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 10px;
+    transition: .12s;
+    text-align: left;
+  }
+  .btn-add-card:hover { background: rgba(20,22,30,.05); color: var(--ink); }
+
+  /* ─── MODAL ─── */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(14,16,20,.45);
+    display: grid; place-items: center;
+    z-index: 200;
+    padding: 20px;
+    animation: fadeIn .15s;
+  }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .modal {
+    background: var(--panel);
+    border-radius: var(--r-lg);
+    width: min(480px, 100%);
+    box-shadow: 0 20px 60px rgba(14,16,20,.2);
+    animation: slideUp .2s cubic-bezier(.3,.7,.4,1);
+    overflow: hidden;
+  }
+  @keyframes slideUp { from{transform:translateY(12px);opacity:0} to{transform:none;opacity:1} }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .modal-title {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+  }
+  .modal-close {
+    width: 30px; height: 30px;
+    border: 0; background: transparent;
+    border-radius: 8px;
+    display: grid; place-items: center;
+    cursor: pointer; color: var(--muted);
+    font-size: 18px;
+    transition: .12s;
+  }
+  .modal-close:hover { background: rgba(20,22,30,.07); color: var(--ink); }
+  .modal-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .field-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 5px;
+  }
+  .field-input, .field-textarea, .field-select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink);
+    background: #FBFBFA;
+    outline: none;
+    transition: .12s;
+  }
+  .field-input:focus, .field-textarea:focus, .field-select:focus {
+    border-color: #E84393;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(232,67,147,.1);
+  }
+  .field-textarea { resize: vertical; min-height: 80px; line-height: 1.45; }
+  .modal-footer {
+    display: flex;
+    gap: 8px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--line);
+  }
+  .modal-footer .btn-confirm { flex: 1; padding: 10px; font-size: 13.5px; }
+  .modal-footer .btn-cancel { padding: 10px 16px; }
+
+  /* ─── FIREBASE SETUP BANNER ─── */
+  .setup-banner {
+    background: #FEF3C7;
+    border: 1px solid #FCD34D;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .setup-banner.hidden { display: none; }
+  .setup-icon { font-size: 20px; flex-shrink: 0; }
+  .setup-text { flex: 1; }
+  .setup-text strong { display: block; font-size: 13.5px; font-weight: 800; color: #92400E; margin-bottom: 4px; }
+  .setup-text p { font-size: 12.5px; color: #78350F; line-height: 1.5; }
+  .setup-text code {
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+    background: rgba(146,64,14,.1);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: #92400E;
+  }
+  .setup-text a { color: #D97706; font-weight: 700; }
+
+  /* ─── EMPTY STATE ─── */
+  .col-empty {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    text-align: center;
+    padding: 16px 12px;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    margin: 0 10px 10px;
+  }
+
+  /* ─── LOADING ─── */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: grid; place-items: center;
+    z-index: 999;
+    transition: opacity .3s;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loading-spinner {
+    width: 32px; height: 32px;
+    border: 3px solid rgba(232,67,147,.2);
+    border-top-color: #E84393;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  /* ─── COL COLORS ─── */
+  .col-dot.pink   { background: #E84393; }
+  .col-dot.blue   { background: #3B82F6; }
+  .col-dot.green  { background: #22C55E; }
+  .col-dot.orange { background: #F97316; }
+  .col-dot.purple { background: #8B5CF6; }
+  .col-dot.yellow { background: #EAB308; }
+  .col-dot.red    { background: #EF4444; }
+  .col-dot.teal   { background: #14B8A6; }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 640px) {
+    .board { flex-direction: column; }
+    .col { flex: none; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+</div>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    Úm ba la mở ra mớ task
+  </div>
+  <div class="topbar-spacer"></div>
+  <div class="sync-indicator" id="syncIndicator">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncLabel">Đang kết nối…</span>
+  </div>
+  <button class="btn-icon" onclick="showAddCardModal()" title="Thêm card mới">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
+</header>
+
+<!-- MAIN BOARD -->
+<main class="board-wrap">
+  <!-- Firebase setup banner -->
+  <div class="setup-banner" id="setupBanner">
+    <div class="setup-icon">⚙️</div>
+    <div class="setup-text">
+      <strong>Cần cấu hình Firebase để sync real-time</strong>
+      <p>
+        1. Vào <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → Tạo project → Thêm Web app → Copy config<br>
+        2. Mở file <code>index.html</code> → Tìm <code>firebaseConfig</code> → Dán config vào<br>
+        3. Trong Firebase Console: Realtime Database → Tạo database → Rules → đặt <code>".read": true, ".write": true</code><br>
+        4. Sau khi cấu hình xong, nhiều người mở link sẽ thấy update của nhau ngay lập tức ✨
+      </p>
+    </div>
+  </div>
+
+  <div class="board-header">
+    <h1 class="board-title">Task Board</h1>
+    <span class="board-count" id="boardCount">0 tasks</span>
+    <div class="board-header-spacer"></div>
+    <button class="btn-add-col" onclick="addColumn()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Thêm cột
+    </button>
+  </div>
+
+  <div class="board" id="board"></div>
+</main>
+
+<!-- ADD/EDIT CARD MODAL -->
+<div class="modal-backdrop hidden" id="cardModal" onclick="handleModalBackdropClick(event)">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="cardModalTitle">Thêm task mới</div>
+      <button class="modal-close" onclick="closeCardModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <div class="field-label">Tên task</div>
+        <input type="text" class="field-input" id="cardTitleInput" placeholder="Mô tả task ngắn gọn…" />
+      </div>
+      <div>
+        <div class="field-label">Cột</div>
+        <select class="field-select" id="cardColumnSelect"></select>
+      </div>
+      <div>
+        <div class="field-label">Tag</div>
+        <input type="text" class="field-input" id="cardTagInput" placeholder="e.g. Design, Dev, Marketing…" />
+      </div>
+      <div>
+        <div class="field-label">Assignee</div>
+        <input type="text" class="field-input" id="cardAssigneeInput" placeholder="Tên người phụ trách…" />
+      </div>
+      <div>
+        <div class="field-label">Deadline</div>
+        <input type="date" class="field-input" id="cardDateInput" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeCardModal()">Huỷ</button>
+      <button class="btn-confirm" onclick="saveCard()">Lưu task</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────
+let state = {
+  columns: [],
+  cards: {}
+};
+
+let editingCard = null; // null = new card
+let editingCardColId = null;
+let dragState = { cardId: null, fromColId: null };
+
+const COLORS = ['pink','blue','green','orange','purple','yellow','red','teal'];
+const COLOR_HEX = {
+  pink:'#E84393', blue:'#3B82F6', green:'#22C55E', orange:'#F97316',
+  purple:'#8B5CF6', yellow:'#EAB308', red:'#EF4444', teal:'#14B8A6'
+};
+
+// ──────────────────────────────────────────────
+// DEFAULT DATA
+// ──────────────────────────────────────────────
+function defaultState() {
+  return {
+    columns: [
+      { id: 'col-todo',    title: 'To Do',       color: 'pink',   order: 0 },
+      { id: 'col-doing',   title: 'In Progress',  color: 'blue',   order: 1 },
+      { id: 'col-review',  title: 'Review',        color: 'orange', order: 2 },
+      { id: 'col-done',    title: 'Done',           color: 'green',  order: 3 },
+    ],
+    cards: {
+      'col-todo': [
+        { id: 'card-1', title: 'Thiết kế giao diện dashboard', tag: 'Design', assignee: 'An', date: '', done: false },
+        { id: 'card-2', title: 'Viết spec cho tính năng auth', tag: 'Dev', assignee: 'Bình', date: '', done: false },
+      ],
+      'col-doing': [
+        { id: 'card-3', title: 'Fix bug login không nhớ session', tag: 'Dev', assignee: 'Chi', date: '', done: false },
+      ],
+      'col-review': [],
+      'col-done': [
+        { id: 'card-4', title: 'Setup CI/CD pipeline', tag: 'Dev', assignee: 'An', date: '', done: true },
+      ],
+    }
+  };
+}
+
+// ──────────────────────────────────────────────
+// FIREBASE SYNC
+// ──────────────────────────────────────────────
+let firebaseConfigured = false;
+
+function checkFirebaseConfigured() {
+  const config = `AIzaSyAGpJfTJDduRls6oIkOWDJnxTQz8hjyBBc`;
+  return config.startsWith('AIzaSy') && config.length > 20;
+}
+
+function initFirebase() {
+  if (!window.__firebaseReady) return;
+  if (!checkFirebaseConfigured()) {
+    // Use localStorage fallback
+    loadFromLocalStorage();
+    setSyncStatus('local');
+    document.getElementById('setupBanner').classList.remove('hidden');
+    hideLoading();
+    return;
+  }
+
+  document.getElementById('setupBanner').classList.add('hidden');
+  firebaseConfigured = true;
+  setSyncStatus('syncing');
+
+  const { db, ref, ops } = getFirebaseHelpers();
+  const boardRef = ref(db, 'board');
+
+  ops.onValue(boardRef, (snapshot) => {
+    const data = snapshot.val();
+    if (!data) {
+      // First time — seed with defaults
+      const defaults = defaultState();
+      ops.set(boardRef, defaults);
+    } else {
+      state = data;
+      if (!state.cards) state.cards = {};
+      renderBoard();
+    }
+    setSyncStatus('live');
+    hideLoading();
+  }, (err) => {
+    console.error('Firebase error:', err);
+    setSyncStatus('error');
+    loadFromLocalStorage();
+    hideLoading();
+  });
+}
+
+function getFirebaseHelpers() {
+  return {
+    db: window.__db,
+    ref: window.__dbRef,
+    ops: window.__dbOps
+  };
+}
+
+function writeToFirebase(path, value) {
+  if (!firebaseConfigured || !window.__db) return;
+  const { db, ref, ops } = getFirebaseHelpers();
+  ops.set(ref(db, path), value);
+  setSyncStatus('syncing');
+  setTimeout(() => setSyncStatus('live'), 600);
+}
+
+function loadFromLocalStorage() {
+  const saved = localStorage.getItem('taskboard-v2');
+  if (saved) {
+    try { state = JSON.parse(saved); } catch(e) { state = defaultState(); }
+  } else {
+    state = defaultState();
+  }
+  renderBoard();
+}
+
+function saveToLocalStorage() {
+  localStorage.setItem('taskboard-v2', JSON.stringify(state));
+}
+
+function persistState() {
+  if (firebaseConfigured) {
+    writeToFirebase('board', state);
+  } else {
+    saveToLocalStorage();
+  }
+}
+
+function setSyncStatus(status) {
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  dot.className = 'sync-dot ' + status;
+  label.textContent = {
+    live: 'Đồng bộ live',
+    syncing: 'Đang lưu…',
+    error: 'Lỗi kết nối',
+    local: 'Lưu local'
+  }[status] || status;
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.add('hidden');
+}
+
+// ──────────────────────────────────────────────
+// RENDER
+// ──────────────────────────────────────────────
+function renderBoard() {
+  const board = document.getElementById('board');
+  const cols = (state.columns || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
+
+  // Remove columns no longer in state
+  [...board.querySelectorAll('.col')].forEach(el => {
+    if (!cols.find(c => c.id === el.dataset.colId)) el.remove();
+  });
+
+  cols.forEach((col, i) => {
+    let colEl = board.querySelector(`[data-col-id="${col.id}"]`);
+    if (!colEl) {
+      colEl = createColumnElement(col);
+      board.appendChild(colEl);
+    }
+    updateColumnElement(colEl, col);
+  });
+
+  // Update board count
+  let total = 0;
+  Object.values(state.cards || {}).forEach(cards => total += (cards||[]).length);
+  document.getElementById('boardCount').textContent = `${total} task${total !== 1 ? 's' : ''}`;
+}
+
+function createColumnElement(col) {
+  const el = document.createElement('div');
+  el.className = 'col';
+  el.dataset.colId = col.id;
+
+  el.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    el.classList.add('drag-over');
+  });
+  el.addEventListener('dragleave', (e) => {
+    if (!el.contains(e.relatedTarget)) el.classList.remove('drag-over');
+  });
+  el.addEventListener('drop', (e) => {
+    e.preventDefault();
+    el.classList.remove('drag-over');
+    handleCardDrop(col.id);
+  });
+
+  return el;
+}
+
+function updateColumnElement(colEl, col) {
+  const cards = (state.cards && state.cards[col.id]) || [];
+  const doneCount = cards.filter(c => c.done).length;
+
+  colEl.innerHTML = `
+    <div class="col-header">
+      <div class="col-dot ${col.color}"></div>
+      <input class="col-title-input" value="${escHtml(col.title)}" 
+        data-col-id="${col.id}"
+        onblur="renameColumn('${col.id}', this.value)"
+        onkeydown="if(event.key==='Enter')this.blur()"
+        title="Click để đổi tên" />
+      <span class="col-count">${cards.length}${doneCount ? ' · ' + doneCount + ' ✓' : ''}</span>
+      <button class="col-menu-btn" onclick="deleteColumn('${col.id}')" title="Xoá cột">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+    </div>
+    <div class="cards" id="cards-${col.id}" data-col-id="${col.id}">
+      ${cards.length === 0 ? `<div class="col-empty">Chưa có task. Thêm ngay!</div>` : ''}
+      ${cards.map(card => renderCard(card, col.id)).join('')}
+    </div>
+    <div class="add-card-area">
+      <button class="btn-add-card" onclick="showAddCardModal('${col.id}')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Thêm task
+      </button>
+    </div>
+  `;
+}
+
+function renderCard(card, colId) {
+  const isOverdue = card.date && !card.done && new Date(card.date) < new Date();
+  const dateStr = card.date ? formatDate(card.date) : '';
+  const initials = card.assignee ? card.assignee.slice(0,2).toUpperCase() : '';
+
+  return `
+    <div class="card${card.done ? ' done' : ''}"
+      draggable="true"
+      data-card-id="${card.id}"
+      data-col-id="${colId}"
+      ondragstart="handleCardDragStart('${card.id}','${colId}')"
+      ondragend="handleCardDragEnd()"
+      ondblclick="editCard('${card.id}','${colId}')"
+      title="Double-click để chỉnh sửa">
+      <div class="card-title">${escHtml(card.title)}</div>
+      ${card.tag || card.assignee || card.date ? `
+        <div class="card-meta">
+          ${card.tag ? `<span class="card-tag">${escHtml(card.tag)}</span>` : ''}
+          ${card.assignee ? `<div class="card-assignee" title="${escHtml(card.assignee)}">${initials}</div>` : ''}
+          ${card.date ? `<span class="card-date${isOverdue ? ' overdue' : ''}">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            ${dateStr}
+          </span>` : ''}
+        </div>
+      ` : ''}
+      <button class="card-check" onclick="toggleCard('${card.id}','${colId}')" title="${card.done ? 'Đánh dấu chưa xong' : 'Đánh dấu xong'}"></button>
+      <button class="card-delete-btn" onclick="deleteCard('${card.id}','${colId}')" title="Xoá task">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  `;
+}
+
+// ──────────────────────────────────────────────
+// DRAG & DROP
+// ──────────────────────────────────────────────
+function handleCardDragStart(cardId, colId) {
+  dragState = { cardId, fromColId: colId };
+  setTimeout(() => {
+    const el = document.querySelector(`[data-card-id="${cardId}"]`);
+    if (el) el.classList.add('dragging');
+  }, 0);
+}
+
+function handleCardDragEnd() {
+  document.querySelectorAll('.card.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.col.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+
+function handleCardDrop(toColId) {
+  const { cardId, fromColId } = dragState;
+  if (!cardId || fromColId === toColId) return;
+
+  const fromCards = state.cards[fromColId] || [];
+  const cardIdx = fromCards.findIndex(c => c.id === cardId);
+  if (cardIdx === -1) return;
+
+  const [card] = fromCards.splice(cardIdx, 1);
+  state.cards[toColId] = state.cards[toColId] || [];
+  state.cards[toColId].push(card);
+
+  persistState();
+  if (!firebaseConfigured) renderBoard();
+  dragState = {};
+}
+
+// ──────────────────────────────────────────────
+// CARD CRUD
+// ──────────────────────────────────────────────
+function showAddCardModal(colId) {
+  editingCard = null;
+  editingCardColId = colId || (state.columns && state.columns[0] && state.columns[0].id) || null;
+  document.getElementById('cardModalTitle').textContent = 'Thêm task mới';
+  document.getElementById('cardTitleInput').value = '';
+  document.getElementById('cardTagInput').value = '';
+  document.getElementById('cardAssigneeInput').value = '';
+  document.getElementById('cardDateInput').value = '';
+  populateColumnSelect(editingCardColId);
+  document.getElementById('cardModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('cardTitleInput').focus(), 50);
+}
+
+function editCard(cardId, colId) {
+  const cards = (state.cards && state.cards[colId]) || [];
+  const card = cards.find(c => c.id === cardId);
+  if (!card) return;
+
+  editingCard = card;
+  editingCardColId = colId;
+  document.getElementById('cardModalTitle').textContent = 'Chỉnh sửa task';
+  document.getElementById('cardTitleInput').value = card.title;
+  document.getElementById('cardTagInput').value = card.tag || '';
+  document.getElementById('cardAssigneeInput').value = card.assignee || '';
+  document.getElementById('cardDateInput').value = card.date || '';
+  populateColumnSelect(colId);
+  document.getElementById('cardModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('cardTitleInput').focus(), 50);
+}
+
+function populateColumnSelect(selectedColId) {
+  const select = document.getElementById('cardColumnSelect');
+  select.innerHTML = (state.columns || []).map(col =>
+    `<option value="${col.id}" ${col.id === selectedColId ? 'selected' : ''}>${escHtml(col.title)}</option>`
+  ).join('');
+}
+
+function saveCard() {
+  const title = document.getElementById('cardTitleInput').value.trim();
+  if (!title) { document.getElementById('cardTitleInput').focus(); return; }
+
+  const colId = document.getElementById('cardColumnSelect').value;
+  const tag = document.getElementById('cardTagInput').value.trim();
+  const assignee = document.getElementById('cardAssigneeInput').value.trim();
+  const date = document.getElementById('cardDateInput').value;
+
+  if (!state.cards) state.cards = {};
+  if (!state.cards[colId]) state.cards[colId] = [];
+
+  if (editingCard) {
+    // Update existing - might be in a different column
+    if (editingCardColId !== colId) {
+      // Move to new column
+      state.cards[editingCardColId] = (state.cards[editingCardColId]||[]).filter(c => c.id !== editingCard.id);
+      if (!state.cards[colId]) state.cards[colId] = [];
+      editingCard.title = title;
+      editingCard.tag = tag;
+      editingCard.assignee = assignee;
+      editingCard.date = date;
+      state.cards[colId].push(editingCard);
+    } else {
+      const idx = state.cards[colId].findIndex(c => c.id === editingCard.id);
+      if (idx >= 0) {
+        state.cards[colId][idx] = { ...state.cards[colId][idx], title, tag, assignee, date };
+      }
+    }
+  } else {
+    const newCard = {
+      id: 'card-' + Date.now() + '-' + Math.random().toString(36).slice(2,7),
+      title, tag, assignee, date, done: false
+    };
+    state.cards[colId].push(newCard);
+  }
+
+  persistState();
+  if (!firebaseConfigured) renderBoard();
+  closeCardModal();
+}
+
+function toggleCard(cardId, colId) {
+  const cards = (state.cards && state.cards[colId]) || [];
+  const card = cards.find(c => c.id === cardId);
+  if (!card) return;
+  card.done = !card.done;
+  persistState();
+  if (!firebaseConfigured) renderBoard();
+}
+
+function deleteCard(cardId, colId) {
+  if (!state.cards || !state.cards[colId]) return;
+  state.cards[colId] = state.cards[colId].filter(c => c.id !== cardId);
+  persistState();
+  if (!firebaseConfigured) renderBoard();
+}
+
+function closeCardModal() {
+  document.getElementById('cardModal').classList.add('hidden');
+  editingCard = null;
+}
+
+function handleModalBackdropClick(e) {
+  if (e.target === document.getElementById('cardModal')) closeCardModal();
+}
+
+// ──────────────────────────────────────────────
+// COLUMN CRUD
+// ──────────────────────────────────────────────
+function addColumn() {
+  const name = prompt('Tên cột mới:');
+  if (!name || !name.trim()) return;
+
+  const id = 'col-' + Date.now();
+  const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+  const order = (state.columns || []).length;
+
+  state.columns = state.columns || [];
+  state.columns.push({ id, title: name.trim(), color, order });
+  state.cards[id] = [];
+
+  persistState();
+  if (!firebaseConfigured) renderBoard();
+}
+
+function renameColumn(colId, newTitle) {
+  if (!newTitle.trim()) return;
+  const col = (state.columns || []).find(c => c.id === colId);
+  if (col) col.title = newTitle.trim();
+  persistState();
+  if (!firebaseConfigured) renderBoard();
+}
+
+function deleteColumn(colId) {
+  const cards = (state.cards && state.cards[colId]) || [];
+  if (cards.length > 0) {
+    if (!confirm(`Cột này có ${cards.length} task. Xoá cột sẽ mất hết task. Tiếp tục?`)) return;
+  }
+  state.columns = (state.columns || []).filter(c => c.id !== colId);
+  if (state.cards) delete state.cards[colId];
+  persistState();
+  if (!firebaseConfigured) renderBoard();
+}
+
+// ──────────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────────
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diff = Math.round((d - now) / (1000*60*60*24));
+  if (diff === 0) return 'Hôm nay';
+  if (diff === 1) return 'Ngày mai';
+  if (diff === -1) return 'Hôm qua';
+  if (diff < -1) return `${Math.abs(diff)} ngày trước`;
+  if (diff < 7) return `${diff} ngày nữa`;
+  return d.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' });
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeCardModal();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    const modal = document.getElementById('cardModal');
+    if (!modal.classList.contains('hidden')) saveCard();
+  }
+});
+
+// ──────────────────────────────────────────────
+// INIT
+// ──────────────────────────────────────────────
+if (window.__firebaseReady) {
+  initFirebase();
+} else {
+  document.addEventListener('firebase-ready', initFirebase);
+  // Fallback timeout in case Firebase module fails
+  setTimeout(() => {
+    if (document.getElementById('loadingOverlay').style.opacity !== '0' &&
+        !document.getElementById('loadingOverlay').classList.contains('hidden')) {
+      loadFromLocalStorage();
+      setSyncStatus('local');
+      hideLoading();
+    }
+  }, 4000);
+}
+</script>
+</body>
+</html>
