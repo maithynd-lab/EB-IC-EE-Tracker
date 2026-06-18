@@ -53,7 +53,7 @@ function WeekView({ members, tasks, tags, range, onOpen }) {
         return (
           <section key={m.id} className="pcard" style={{ '--accent': m.color }}>
             <header className="pcard-head">
-              <span className="avatar" style={{ background: m.color }}>{m.name.charAt(0)}</span>
+              <span className="avatar" style={{ background: m.color }}>{m.icon || m.name.charAt(0)}</span>
               <span className="pcard-name">{m.name}</span>
             </header>
             <div className="stats">

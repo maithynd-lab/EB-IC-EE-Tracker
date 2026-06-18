@@ -62,7 +62,65 @@ function ChannelPicker({ channels, value, onChange, onCreate }) {
 }
 
 // ── PostEditor modal ───────────────────────────────────────────────────────
-function PostEditor({ post, members, channels, events, onCreateChannel, onSave, onDelete, onClose }) {
+// EventPicker (single-select event tag + inline create)
+function EventPicker({ events, value, onChange, onCreate }) {
+  const [q, setQ] = React.useState('');
+  const [open, setOpen] = React.useState(false);
+  const [newColor, setNewColor] = React.useState(TAG_PALETTE[9]);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+  const selected = value ? events.find((e) => e.id === value) : null;
+  const ql = q.trim().toLowerCase();
+  const matches = events.filter((e) => e.id !== value && e.name.toLowerCase().includes(ql));
+  const exact = events.some((e) => e.name.toLowerCase() === ql);
+  const pick = (id) => { onChange(id); setQ(''); setOpen(false); };
+  const create = (color) => { const name = q.trim(); if (!name) return; const e = onCreate(name, color); onChange(e.id); setQ(''); setOpen(false); };
+  return (
+    <div className="tagpicker" ref={ref}>
+      <div className="tagpicker-field" onClick={() => setOpen(true)}>
+        {selected && (
+          <span className="tag tag-rm" style={tagStyle(selected.color)}>
+            {selected.name}
+            <button onClick={(e) => { e.stopPropagation(); onChange(null); }} aria-label="Bỏ event"><IconClose size={11} sw={2.4} /></button>
+          </span>
+        )}
+        <input className="tagpicker-input" value={q} placeholder={selected ? '' : 'Chọn hoặc tạo event…'}
+               onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+               onKeyDown={(e) => { if (e.key === 'Enter' && q.trim() && !exact) { e.preventDefault(); create(newColor); } }} />
+      </div>
+      {open && (
+        <div className="tagpicker-menu">
+          {matches.length > 0 && (
+            <div className="tagpicker-list">
+              {matches.map((e) => (
+                <button key={e.id} className="tagpicker-opt" onClick={() => pick(e.id)}>
+                  <span className="tag" style={tagStyle(e.color)}>{e.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {q.trim() && !exact && (
+            <div className="tagpicker-create">
+              <div className="tagpicker-create-row"><span className="muted-lbl">Tạo event</span><span className="tag" style={tagStyle(newColor)}>{q.trim()}</span></div>
+              <div className="swatches">
+                {TAG_PALETTE.map((c) => (
+                  <button key={c} className={'swatch' + (c === newColor ? ' on' : '')} style={{ background: c }} onClick={() => { setNewColor(c); create(c); }} />
+                ))}
+              </div>
+            </div>
+          )}
+          {!matches.length && !q.trim() && <div className="tagpicker-empty">Gõ để tạo event mới hoặc chọn có sẵn</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PostEditor({ post, members, channels, events, onCreateChannel, onCreateEvent, onSave, onDelete, onClose }) {
   const [draft, setDraft] = React.useState(post);
   const [calOpen, setCalOpen] = React.useState(false);
   React.useEffect(() => { setDraft(post); setCalOpen(false); }, [post]);
@@ -94,7 +152,7 @@ function PostEditor({ post, members, channels, events, onCreateChannel, onSave, 
                 {members.map((m) => (
                   <button key={m.id} className={'avatar pick-lg' + (draft.pic === m.id ? ' on' : '')}
                           style={{ background: draft.pic === m.id ? m.color : 'transparent', color: draft.pic === m.id ? '#fff' : m.color, boxShadow: `inset 0 0 0 2px ${m.color}` }}
-                          onClick={() => set({ pic: m.id })} title={m.name}>{m.name.charAt(0)}</button>
+                          onClick={() => set({ pic: m.id })} title={m.name}>{m.icon || m.name.charAt(0)}</button>
                 ))}
               </div>
             </div>
@@ -112,10 +170,7 @@ function PostEditor({ post, members, channels, events, onCreateChannel, onSave, 
             </div>
             <div className="field">
               <div className="label"><IconCalendar size={14} /> Gắn event</div>
-              <select className="post-select" value={draft.eventId || ''} onChange={(e) => set({ eventId: e.target.value || null })}>
-                <option value="">— Không —</option>
-                {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-              </select>
+              <EventPicker events={events} value={draft.eventId || null} onChange={(id) => set({ eventId: id })} onCreate={onCreateEvent} />
             </div>
           </div>
 
@@ -151,11 +206,14 @@ function PostChip({ post, channels, events, onOpen, onToggle }) {
   return (
     <div className={'cpost' + (post.posted ? ' posted' : '')} onClick={() => onOpen(post)}
          style={ev ? { borderLeftColor: ev.color, borderLeftWidth: 3 } : undefined}>
-      <button className="cpost-check" onClick={(e) => { e.stopPropagation(); onToggle(post.id, e); }} aria-label="Đã đăng">
-        {post.posted && <IconCheck size={10} sw={3} />}
-      </button>
-      {chs.length > 0 && <span className="cpost-dots">{chs.map((c) => <i key={c.id} style={{ background: c.color }} />)}</span>}
-      <span className="cpost-title">{post.title}</span>
+      <div className="cpost-top">
+        <button className="cpost-check" onClick={(e) => { e.stopPropagation(); onToggle(post.id, e); }} aria-label="Đã đăng">
+          {post.posted && <IconCheck size={10} sw={3} />}
+        </button>
+        {chs.length > 0 && <span className="cpost-chs">{chs.map((c) => <i key={c.id} className="cpost-ch" style={{ color: c.color }} title={c.name}>{c.icon || c.name.charAt(0)}</i>)}</span>}
+        <span className="cpost-title">{post.title}</span>
+      </div>
+      {ev && <span className="cpost-ev" style={tagStyle(ev.color)}>{ev.name}</span>}
     </div>
   );
 }
@@ -181,7 +239,7 @@ function CommList({ posts, channels, members, events, onOpen, onToggle }) {
                 <span className="comm-list-title">{p.title}</span>
                 <div className="comm-list-chs">{chs.map((c) => <span key={c.id} className="tag mini" style={tagStyle(c.color)}>{c.name}</span>)}</div>
                 {ev && <span className="tag mini" style={tagStyle(ev.color)}>{ev.name}</span>}
-                {pic && <span className="avatar xs" style={{ background: pic.color }} title={pic.name}>{pic.name.charAt(0)}</span>}
+                {pic && <span className="avatar xs" style={{ background: pic.color }} title={pic.name}>{pic.icon || pic.name.charAt(0)}</span>}
               </div>
             );
           })}
@@ -192,7 +250,7 @@ function CommList({ posts, channels, members, events, onOpen, onToggle }) {
 }
 
 // ── CommCalendar ───────────────────────────────────────────────────────────
-function CommCalendar({ posts, channels, members, events, refMonth, onStep, onToday, view, setView, note, onNote, onOpenPost, onNewPost, onTogglePosted }) {
+function CommCalendar({ posts, channels, members, events, refMonth, onStep, onToday, view, setView, note, onNote, onOpenPost, onNewPost, onTogglePosted, onOpenEvent }) {
   const d = parseISO(refMonth), y = d.getFullYear(), m = d.getMonth();
   const first = new Date(y, m, 1), startDow = (first.getDay() + 6) % 7;
   const dim = new Date(y, m + 1, 0).getDate();
@@ -202,6 +260,8 @@ function CommCalendar({ posts, channels, members, events, refMonth, onStep, onTo
   while (cells.length % 7) cells.push(null);
   const byDate = {};
   posts.forEach((p) => { (byDate[p.date] = byDate[p.date] || []).push(p); });
+  const evByDate = {};
+  events.forEach((e) => { if (e.date) (evByDate[e.date] = evByDate[e.date] || []).push(e); });
   const today = todayISO();
 
   return (
@@ -228,7 +288,6 @@ function CommCalendar({ posts, channels, members, events, refMonth, onStep, onTo
       {view === 'list' ? (
         <CommList posts={posts} channels={channels} members={members} events={events} onOpen={onOpenPost} onToggle={onTogglePosted} />
       ) : (
-        <div className="comm-body">
         <div className="comm-grid">
           <div className="comm-dow-row">{CDOW.map((w) => <span key={w} className="comm-dow">{w}</span>)}</div>
           <div className="comm-cells">
@@ -243,6 +302,12 @@ function CommCalendar({ posts, channels, members, events, refMonth, onStep, onTo
                     <button className="comm-add" onClick={() => onNewPost(iso)} aria-label="Thêm bài"><IconPlus size={13} /></button>
                   </div>
                   <div className="comm-cell-posts">
+                    {(evByDate[iso] || []).map((e) => (
+                      <button key={e.id} className="cevent" style={{ background: e.color }}
+                              onClick={(ev) => { ev.stopPropagation(); onOpenEvent && onOpenEvent(e); }} title={'Sự kiện: ' + e.name}>
+                        <IconCalendar size={10} /> <span>{e.name}</span>
+                      </button>
+                    ))}
                     {list.map((p) => <PostChip key={p.id} post={p} channels={channels} events={events} onOpen={onOpenPost} onToggle={onTogglePosted} />)}
                   </div>
                 </div>
@@ -250,14 +315,9 @@ function CommCalendar({ posts, channels, members, events, refMonth, onStep, onTo
             })}
           </div>
         </div>
-        <aside className="comm-notes">
-          <div className="comm-notes-h"><IconNote size={14} /> Ghi chú bài đăng</div>
-          <textarea className="comm-notes-ta" value={note} placeholder="Note nhanh về bài đăng / lịch tháng này…" onChange={(e) => onNote(e.target.value)} />
-        </aside>
-        </div>
       )}
     </section>
   );
 }
 
-Object.assign(window, { ChannelPicker, PostEditor, PostChip, CommList, CommCalendar });
+Object.assign(window, { ChannelPicker, EventPicker, PostEditor, PostChip, CommList, CommCalendar });

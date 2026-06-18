@@ -35,7 +35,7 @@ function PhaseAdd({ members, defOwner, onAdd }) {
         {members.map((m) => (
           <button key={m.id} className={'avatar xs pick' + (owner === m.id ? ' on' : '')}
                   style={{ background: owner === m.id ? m.color : 'transparent', color: owner === m.id ? '#fff' : m.color, boxShadow: `inset 0 0 0 1.5px ${m.color}` }}
-                  onClick={() => setOwner(m.id)} title={m.name}>{m.name.charAt(0)}</button>
+                  onClick={() => setOwner(m.id)} title={m.name}>{m.icon || m.name.charAt(0)}</button>
         ))}
       </div>
       <input className="phase-add-input" value={text} placeholder="+ Thêm việc…"
@@ -47,7 +47,7 @@ function PhaseAdd({ members, defOwner, onAdd }) {
 
 const PHASES = [['pre', 'Pre-Event'], ['during', 'During-Event'], ['post', 'Post-Event']];
 
-function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onEditEvent, onUpdateEvent, onSetPhase, past }) {
+function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddTask, onEditEvent, onUpdateEvent, onSetPhase, past }) {
   const prep = tasks.filter((t) => t.tagIds.includes(event.id));
   const done = prep.filter((t) => t.done);
   const total = prep.length;
@@ -70,7 +70,7 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onEdit
         <div className="event-head-r">
           {owners.length > 0 && (
             <div className="event-owners" title={'Phụ trách: ' + owners.map((o) => o.name).join(', ')}>
-              {owners.map((o) => <span key={o.id} className="avatar xs" style={{ background: o.color }}>{o.name.charAt(0)}</span>)}
+              {owners.map((o) => <span key={o.id} className="avatar xs" style={{ background: o.color }}>{o.icon || o.name.charAt(0)}</span>)}
             </div>
           )}
           <span className={'event-dbadge' + (daysUntil(event.date) <= 0 ? ' hot' : '')}>{dBadge(event.date)}</span>
@@ -122,14 +122,14 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onEdit
                       <button className="card-check sm" style={{ '--accent': owner.color }} onClick={(e) => onToggle(t.id, e)} aria-label="Hoàn thành">
                         {t.done && <IconCheck size={12} sw={2.8} />}
                       </button>
-                      <span className="avatar xs" style={{ background: owner.color }} title={owner.name}>{owner.name.charAt(0)}</span>
+                      <span className="avatar xs" style={{ background: owner.color }} title={owner.name}>{owner.icon || owner.name.charAt(0)}</span>
                       <button className="ev-title" onClick={() => onOpen(t)}>{t.title}</button>
                       {t.deadline && <span className={'due' + (isOverdue(t.deadline) && !t.done ? ' over' : '')}><IconCalendar size={12} /> {relDue(t.deadline)}</span>}
                     </div>
                   );
                 })}
               </div>
-              <PhaseAdd members={members} defOwner={defOwner} onAdd={(ownerId, title) => onAddPrep(event.id, ownerId, title, ph)} />
+              <button className="phase-add-btn" onClick={() => onAddTask(event.id, ph)}><IconPlus size={14} /> Thêm việc</button>
             </div>
           );
         })}
@@ -139,7 +139,7 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onEdit
 }
 
 // ── EventsSection ────────────────────────────────────────────────────────
-function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase }) {
+function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, onAddTask, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase }) {
   const [showPast, setShowPast] = React.useState(false);
   const upcoming = events.filter((e) => daysUntil(e.date) >= 0).sort((a, b) => a.date < b.date ? -1 : 1);
   const pastEvents = events.filter((e) => daysUntil(e.date) < 0).sort((a, b) => a.date > b.date ? -1 : 1);
@@ -163,7 +163,7 @@ function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, on
       <div className="events-list">
         {upcoming.map((e) => (
           <EventBlock key={e.id} event={e} tasks={tasks} members={members}
-                      onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onEditEvent={onEditEvent}
+                      onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onAddTask={onAddTask} onEditEvent={onEditEvent}
                       onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase} />
         ))}
       </div>
@@ -178,7 +178,7 @@ function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, on
             <div className="events-list">
               {pastEvents.map((e) => (
                 <EventBlock key={e.id} event={e} tasks={tasks} members={members} past
-                            onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onEditEvent={onEditEvent}
+                            onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onAddTask={onAddTask} onEditEvent={onEditEvent}
                             onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase} />
               ))}
             </div>

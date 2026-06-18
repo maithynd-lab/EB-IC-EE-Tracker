@@ -2,80 +2,35 @@
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "m1Name": "Mai Thy",
-  "m1Color": "#8B5CF6",
+  "m1Color": "#7C3AED",
+  "m1Icon": "M",
   "m2Name": "Xuân Thy",
   "m2Color": "#3B82F6",
+  "m2Icon": "X",
   "m3Name": "Minh Nguyệt",
   "m3Color": "#F97316",
+  "m3Icon": "N",
   "bg": "plain"
 }/*EDITMODE-END*/;
 
 const LS = { tasks: 'ttb_tasks_v2', tags: 'ttb_tags_v2', sort: 'ttb_sort_v2', posts: 'ttb_posts_v1', channels: 'ttb_channels_v1', scope: 'ttb_scope_v1', commNotes: 'ttb_commnotes_v1' };
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-// ── Firebase sync ────────────────────────────────────────────────────────
-// Replaces useLocal — syncs to Firebase Realtime Database instead of localStorage.
-// Falls back to localStorage if Firebase is not ready.
-const FB_PATH = 'ttb'; // root path in your Firebase database
-
-function useFirebase(key, initial) {
-  const [val, setValState] = React.useState(() => {
-    // Load from localStorage immediately for fast first paint
+function useLocal(key, initial) {
+  const [val, setVal] = React.useState(() => {
     try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : initial; }
     catch { return initial; }
   });
-  const valRef = React.useRef(val);
-  const skipNextRef = React.useRef(false); // prevent echo from our own writes
-
   React.useEffect(() => {
-    valRef.current = val;
-  }, [val]);
-
-  React.useEffect(() => {
-    // Also sync to localStorage as backup
     try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
   }, [key, val]);
-
-  React.useEffect(() => {
-    if (!window.__firebaseDB) return;
-    const { ref, onValue, set } = window.__firebaseDB;
-    const dbRef = ref(FB_PATH + '/' + key);
-    const unsub = onValue(dbRef, (snap) => {
-      if (skipNextRef.current) { skipNextRef.current = false; return; }
-      const data = snap.val();
-      if (data !== null && data !== undefined) {
-        setValState(data);
-        try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
-      }
-    });
-    return unsub;
-  }, [key]);
-
-  const setVal = React.useCallback((updater) => {
-    setValState((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      // Write to Firebase
-      if (window.__firebaseDB) {
-        const { ref, set } = window.__firebaseDB;
-        skipNextRef.current = true;
-        set(ref(FB_PATH + '/' + key), next).catch(() => { skipNextRef.current = false; });
-      }
-      // Always write to localStorage too
-      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, [key]);
-
   return [val, setVal];
 }
 
-// Use useFirebase for all shared state
-const useLocal = useFirebase;
-
 const MEMBERS = [
-  { id: 'm1', nameKey: 'm1Name', colorKey: 'm1Color' },
-  { id: 'm2', nameKey: 'm2Name', colorKey: 'm2Color' },
-  { id: 'm3', nameKey: 'm3Name', colorKey: 'm3Color' },
+  { id: 'm1', nameKey: 'm1Name', colorKey: 'm1Color', iconKey: 'm1Icon' },
+  { id: 'm2', nameKey: 'm2Name', colorKey: 'm2Color', iconKey: 'm2Icon' },
+  { id: 'm3', nameKey: 'm3Name', colorKey: 'm3Color', iconKey: 'm3Icon' },
 ];
 
 // ── seed ────────────────────────────────────────────────────────────────
@@ -107,11 +62,11 @@ const SEED_TASKS = [
 
 // ── sorting ─────────────────────────────────────────────────────────────
 const SEED_CHANNELS = [
-  { id: 'ch1', name: 'Email', color: '#3B82F6' },
-  { id: 'ch2', name: 'Zalo OA', color: '#0EA5E9' },
-  { id: 'ch3', name: 'LED screen', color: '#F59E0B' },
-  { id: 'ch4', name: 'Knowlet', color: '#8B5CF6' },
-  { id: 'ch5', name: 'LinkedIn', color: '#0A66C2' },
+  { id: 'ch1', name: 'Email', color: '#3B82F6', icon: '✉️' },
+  { id: 'ch2', name: 'Zalo OA', color: '#0EA5E9', icon: '💬' },
+  { id: 'ch3', name: 'LED screen', color: '#F59E0B', icon: '📺' },
+  { id: 'ch4', name: 'Knowlet', color: '#8B5CF6', icon: '📘' },
+  { id: 'ch5', name: 'LinkedIn', color: '#0A66C2', icon: '💼' },
 ];
 const SEED_POSTS = [
   { id: uid(), date: d(0), title: 'Mở đăng ký giải cầu lông', channelIds: ['ch2', 'ch5'], pic: 'm1', url: '', note: 'Kèm link form', eventId: 'tg1', posted: false },
@@ -185,10 +140,18 @@ function TaskCard({ task, tags, accent, onToggle, onOpen, onDragStart, onDragEnd
 }
 
 // ── Column ──────────────────────────────────────────────────────────────
-function Column({ member, name, color, avatar, tasks, tags, sort, scope, onToggle, onOpen, onQuickAdd, onAddClick,
+function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpen, onQuickAdd, onAddClick, onCustomize,
                   drag, setDrag, dropInfo, setDropInfo, onDrop }) {
   const [quick, setQuick] = React.useState('');
+  const [cust, setCust] = React.useState(false);
+  const custRef = React.useRef(null);
   const listRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!cust) return;
+    const onDoc = (e) => { if (custRef.current && !custRef.current.contains(e.target)) setCust(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [cust]);
 
   const mine = tasks.filter((t) => t.owner === member.id && inScope(t, scope));
   const cmp = sortComparator(sort);
@@ -216,15 +179,33 @@ function Column({ member, name, color, avatar, tasks, tags, sort, scope, onToggl
              onDragOver={onDragOver}
              onDrop={(e) => { e.preventDefault(); onDrop(member.id, dropInfo ? dropInfo.index : active.length); }}>
       <header className="col-head">
-        {avatar
-          ? <img src={avatar} style={{width:32,height:32,borderRadius:10,objectFit:'cover',flexShrink:0,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}} />
-          : <span className="avatar" style={{ background: color }}>{name.charAt(0)}</span>
-        }
+        <span className="avatar" style={{ background: color }}>{member.icon || name.charAt(0)}</span>
         <div className="col-meta">
           <span className="col-name">{name}</span>
           <span className="col-count">{active.length} đang làm · {done.length} xong</span>
         </div>
+        <button className="iconbtn sm colcust-btn" onClick={() => setCust((o) => !o)} aria-label="Tùy chỉnh avatar & màu"><IconGear size={15} /></button>
         <button className="iconbtn add" onClick={() => onAddClick(member.id)} aria-label="Thêm task"><IconPlus size={18} /></button>
+        {cust && (
+          <div className="colcust-pop" ref={custRef}>
+            <div className="colcust-sec">Avatar</div>
+            <div className="colcust-row">
+              <input className="colcust-input" maxLength={2} value={member.icon || ''} placeholder={name.charAt(0)}
+                     onChange={(e) => onCustomize(member.id, { icon: e.target.value })} aria-label="Chữ / icon" />
+              <div className="colcust-emojis">
+                {['\uD83D\uDC1D', '\uD83D\uDC75', '\uD83C\uDF19', '\u2B50', '\uD83C\uDF38', '\uD83D\uDC31', '\uD83D\uDE80', '\uD83C\uDFA8', '\uD83C\uDF40', '\uD83E\uDD8A'].map((e) => (
+                  <button key={e} className="colcust-emoji" onClick={() => onCustomize(member.id, { icon: e })}>{e}</button>
+                ))}
+              </div>
+            </div>
+            <div className="colcust-sec">Màu cột</div>
+            <div className="colcust-colors">
+              {TAG_PALETTE.map((c) => (
+                <button key={c} className={'swatch' + (c === color ? ' on' : '')} style={{ background: c }} onClick={() => onCustomize(member.id, { color: c })} aria-label={'Màu ' + c} />
+              ))}
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="col-list" ref={listRef}>
@@ -263,7 +244,136 @@ function Column({ member, name, color, avatar, tasks, tags, sort, scope, onToggl
   );
 }
 
+// ── Intro: fairy waves a wand, then 'bùm' the interface appears ────────────
+function IntroOverlay({ onReveal, onClose }) {
+  const [phase, setPhase] = React.useState('run');
+  const done = React.useRef(false);
+  const finish = React.useCallback(() => {
+    if (done.current) return;
+    done.current = true;
+    setPhase('out');
+    if (window.fireConfetti) window.fireConfetti({ x: window.innerWidth / 2, y: window.innerHeight * 0.46,
+      count: 80, power: 12, up: 5, colors: ['#7C3AED', '#A855F7', '#EC4899', '#3B82F6', '#FCD34D', '#F97316', '#22C55E'] });
+    if (window.popEmoji) window.popEmoji({ emoji: '\u2728', size: 54, x: window.innerWidth / 2, y: window.innerHeight * 0.44, duration: 1300 });
+    onReveal();
+    setTimeout(onClose, 640);
+  }, [onReveal, onClose]);
+
+  React.useEffect(() => {
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { onReveal(); onClose(); return; }
+    const t1 = setTimeout(() => setPhase('burst'), 1250);
+    const t2 = setTimeout(finish, 1450);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  return (
+    <div className={'intro intro-' + phase} onClick={finish}>
+      <div className="intro-glow" />
+      <div className="intro-fairy f1">{'\uD83E\uDDDA'}</div>
+      <div className="intro-fairy f2">{'\uD83E\uDDDA'}</div>
+      <div className="intro-fairy f3">{'\uD83E\uDDDA'}</div>
+      <div className="intro-umbala">Úm ba la…</div>
+      <div className="intro-hint">bấm để bỏ qua</div>
+    </div>
+  );
+}
+
 // ── App ─────────────────────────────────────────────────────────────────
+// ── TaskPit: dark hero with title + 3 fairies; cursor glow; empty = they fly up ──
+function TaskPit({ count }) {
+  const prev = React.useRef(count);
+  const [free, setFree] = React.useState(count === 0);
+  React.useEffect(() => {
+    if (prev.current > 0 && count === 0) {
+      setFree(true);
+      if (window.celebrateBig) setTimeout(() => window.celebrateBig(), 140);
+    } else if (count > 0) {
+      setFree(false);
+    }
+    prev.current = count;
+  }, [count]);
+
+  const stageRef = React.useRef(null);
+  const glowRef = React.useRef(null);
+  const f0 = React.useRef(null), f1 = React.useRef(null), f2 = React.useRef(null);
+  const fairyRefs = [f0, f1, f2];
+  const S = React.useRef({ cur: [[0, 0], [0, 0], [0, 0]], tgt: [[0, 0], [0, 0], [0, 0]], home: [[0, 0], [0, 0], [0, 0]], hover: false, raf: 0 });
+  const OFFS = [[-38, -4], [2, 12], [42, -2]];
+  const GLOWS = ['#7C3AED', '#EC4899', '#3B82F6']; // match the 3 intro fairies
+
+  const computeHome = () => {
+    const st = stageRef.current; if (!st) return;
+    const w = st.clientWidth, h = st.clientHeight;
+    const hx = [w * 0.64, w * 0.77, w * 0.9], hy = [h * 0.5 - 6, h * 0.5 + 12, h * 0.5 - 2];
+    S.current.home = hx.map((x, i) => [Math.min(w - 28, x), hy[i]]);
+  };
+  const apply = (i) => {
+    const el = fairyRefs[i].current; if (!el) return;
+    const c = S.current.cur[i];
+    el.style.transform = 'translate(' + c[0] + 'px,' + c[1] + 'px) translate(-50%,-50%)';
+  };
+
+  React.useEffect(() => {
+    computeHome();
+    const s = S.current;
+    s.cur = s.home.map((p) => [p[0], p[1]]);
+    s.tgt = s.home.map((p) => [p[0], p[1]]);
+    for (let i = 0; i < 3; i++) { apply(i); const el = fairyRefs[i].current; if (el) el.style.opacity = '1'; }
+    const tick = () => {
+      for (let i = 0; i < 3; i++) {
+        const c = s.cur[i], t = s.tgt[i];
+        c[0] += (t[0] - c[0]) * 0.14; c[1] += (t[1] - c[1]) * 0.14;
+        apply(i);
+      }
+      s.raf = requestAnimationFrame(tick);
+    };
+    s.raf = requestAnimationFrame(tick);
+    const onResize = () => { computeHome(); if (!s.hover) s.tgt = s.home.map((p) => [p[0], p[1]]); };
+    window.addEventListener('resize', onResize);
+    return () => { cancelAnimationFrame(s.raf); window.removeEventListener('resize', onResize); };
+  }, []);
+
+  const onMove = (e) => {
+    const st = stageRef.current; if (!st) return;
+    const r = st.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const s = S.current; s.hover = true;
+    for (let i = 0; i < 3; i++) {
+      let tx = x + OFFS[i][0], ty = y + OFFS[i][1];
+      tx = Math.max(26, Math.min(r.width - 26, tx));
+      ty = Math.max(26, Math.min(r.height - 26, ty));
+      s.tgt[i] = [tx, ty];
+    }
+    if (glowRef.current) { glowRef.current.style.opacity = '1'; glowRef.current.style.transform = 'translate(' + x + 'px,' + y + 'px)'; }
+  };
+  const onLeave = () => {
+    const s = S.current; s.hover = false; s.tgt = s.home.map((p) => [p[0], p[1]]);
+    if (glowRef.current) glowRef.current.style.opacity = '0';
+  };
+
+  return (
+    <div className={'taskpit' + (free ? ' free' : '')}>
+      <div className="taskpit-title">Úm ba la mở ra mớ task</div>
+      <div className="taskpit-stage" ref={stageRef} onMouseMove={onMove} onMouseLeave={onLeave}>
+        <div className="pit-glow" ref={glowRef} />
+        <div className="pit-deco" aria-hidden="true">
+          <span className="pit-bug pit-butterfly">{'\uD83E\uDD8B'}</span>
+          <span className="pit-bug pit-frog">{'\uD83D\uDC38'}</span>
+          <span className="pit-star s1">{'\u2728'}</span>
+          <span className="pit-star s2">{'\u2B50'}</span>
+          <span className="pit-star s3">{'\u2728'}</span>
+        </div>
+        <div className="taskpit-fairies">
+          {GLOWS.map((g, i) => (
+            <span key={i} ref={fairyRefs[i]} className="pit-fairy" style={{ '--g': g }}>{'\uD83E\uDDDA'}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [tasks, setTasks] = useLocal(LS.tasks, SEED_TASKS);
@@ -282,6 +392,8 @@ function App() {
   const [commRef, setCommRef] = React.useState(todayISO());
   const [commView, setCommView] = React.useState('grid');
   const [editingPost, setEditingPost] = React.useState(null);
+  const [revealApp, setRevealApp] = React.useState(false);
+  const [showIntro, setShowIntro] = React.useState(true);
 
   const range = view === 'week' ? weekRange(ref) : view === 'month' ? monthRange(ref) : null;
 
@@ -311,32 +423,59 @@ function App() {
       return changed ? next : prev;
     });
   }, []);
+  // migrate channels that predate the icon field
+  React.useEffect(() => {
+    const ic = { 'Email': '\u2709\uFE0F', 'Zalo OA': '\uD83D\uDCAC', 'LED screen': '\uD83D\uDCFA', 'Knowlet': '\uD83D\uDCD8', 'LinkedIn': '\uD83D\uDCBC' };
+    setChannels((prev) => {
+      let changed = false;
+      const next = prev.map((c) => { if (c.icon === undefined) { changed = true; return { ...c, icon: ic[c.name] || c.name.charAt(0).toUpperCase() }; } return c; });
+      return changed ? next : prev;
+    });
+  }, []);
   const periodLabel = view === 'week' ? weekLabel(range) : view === 'month' ? monthLabel(ref) : '';
   const stepPeriod = (dir) => {
     if (view === 'week') setRef(addDaysISO(ref, dir * 7));
     else { const dt = parseISO(ref); setRef(toISO(new Date(dt.getFullYear(), dt.getMonth() + dir, 1))); }
   };
 
-  const members = MEMBERS.map((m) => ({ id: m.id, name: t[m.nameKey], color: t[m.colorKey] }));
+  const members = MEMBERS.map((m) => ({ id: m.id, name: t[m.nameKey], color: t[m.colorKey], icon: t[m.iconKey] }));
   const memberOf = (id) => members.find((m) => m.id === id);
+  const customizeMember = (id, patch) => {
+    const def = MEMBERS.find((x) => x.id === id); if (!def) return;
+    const edits = {};
+    if (patch.icon !== undefined) edits[def.iconKey] = patch.icon;
+    if (patch.color !== undefined) edits[def.colorKey] = patch.color;
+    if (Object.keys(edits).length) setTweak(edits);
+  };
 
   const toggle = (id, ev) => {
     const task = tasks.find((x) => x.id === id);
     if (!task) return;
     const newDone = !task.done;
-    setTasks((prev) => prev.map((x) => x.id === id ? { ...x, done: newDone, completedAt: newDone ? todayISO() : null } : x));
-    if (newDone) {
-      const x = ev && ev.clientX != null ? ev.clientX : window.innerWidth / 2;
-      const y = ev && ev.clientY != null ? ev.clientY : window.innerHeight / 2;
-      if (window.celebrateTask) window.celebrateTask(x, y);
-      task.tagIds.forEach((tid) => {
-        const tag = tags.find((g) => g.id === tid);
-        if (tag && tag.date) {
-          const others = tasks.filter((p) => p.tagIds.includes(tid) && p.id !== id);
-          if (others.every((p) => p.done)) setTimeout(() => window.celebrateBig && window.celebrateBig(), 260);
-        }
-      });
-    }
+    const next = tasks.map((x) => x.id === id ? { ...x, done: newDone, completedAt: newDone ? todayISO() : null } : x);
+    setTasks(next);
+    if (!newDone) return;
+    const x = ev && ev.clientX != null ? ev.clientX : window.innerWidth / 2;
+    const y = ev && ev.clientY != null ? ev.clientY : window.innerHeight / 2;
+    if (window.celebrateTask) window.celebrateTask(x, y);
+
+    let rocketed = false;
+    const fly = () => { if (!rocketed && window.celebrateRocket) { rocketed = true; setTimeout(() => window.celebrateRocket(), 340); } };
+
+    // an event (tag with a date) is fully done
+    task.tagIds.forEach((tid) => {
+      const tag = tags.find((g) => g.id === tid);
+      if (tag && tag.date) {
+        const evTasks = next.filter((p) => p.tagIds.includes(tid));
+        if (evTasks.length && evTasks.every((p) => p.done)) fly();
+      }
+    });
+    // all of this member's tasks are done
+    const mine = next.filter((p) => p.owner === task.owner);
+    if (mine.length && mine.every((p) => p.done)) fly();
+    // all of this week's tasks are done
+    const wk = next.filter((p) => inScope(p, 'week'));
+    if (wk.length && wk.every((p) => p.done)) fly();
   };
 
   const quickAdd = (owner, title) => setTasks((prev) => {
@@ -349,6 +488,11 @@ function App() {
     setEditing({ id: uid(), owner, title: '', note: '', tagIds: [], priority: null, deadline: null, done: false, completedAt: null, phase: 'pre', order: max + 1, isNew: true });
   };
   const openEdit = (task) => setEditing({ ...task, isNew: false });
+  const openNewForEvent = (eventId, phase) => {
+    const owner = members[0].id;
+    const max = Math.max(0, ...tasks.filter((x) => x.owner === owner).map((x) => x.order));
+    setEditing({ id: uid(), owner, title: '', note: '', tagIds: [eventId], priority: null, deadline: null, done: false, completedAt: null, phase: phase || 'pre', order: max + 1, isNew: true });
+  };
 
   const saveTask = (draft) => {
     const { isNew, ...clean } = draft;
@@ -385,6 +529,7 @@ function App() {
   const savePost = (draft) => { const { isNew, ...clean } = draft; setPosts((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? clean : x)); setEditingPost(null); };
   const deletePost = (id) => { setPosts((prev) => prev.filter((x) => x.id !== id)); setEditingPost(null); };
   const createChannel = (name, color) => { const c = { id: uid(), name, color }; setChannels((prev) => [...prev, c]); return c; };
+  const createEventTag = (name, color) => { const ev = { id: uid(), name, color, date: (editingPost && editingPost.date) || todayISO() }; setTags((prev) => [...prev, ev]); return ev; };
 
   const doDrop = (toOwner, toIndex) => {
     if (!drag) return;
@@ -405,26 +550,24 @@ function App() {
 
   const total = tasks.length;
   const doneCount = tasks.filter((x) => x.done).length;
+  const activeCount = total - doneCount;
   const events = tags.filter((x) => x.date);
-  const [showSettings, setShowSettings] = React.useState(false);
-  const [avatars, setAvatars] = useLocal('ttb_avatars_v1', {});
+  const memberColorOpts = {
+    m1: ['#7C3AED', '#8B5CF6', '#A855F7', '#6366F1'],
+    m2: ['#3B82F6', '#2563EB', '#0EA5E9', '#4F46E5'],
+    m3: ['#F97316', '#FB923C', '#EA580C', '#F59E0B'],
+  };
 
   return (
-    <div className={'app bg-' + (t.bg || 'grid')}>
+    <>
+    <div className={'app bg-' + (t.bg || 'plain') + (revealApp ? '' : ' intro-pending')}>
+      <TaskPit count={activeCount} members={members} />
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark"><IconCheck size={18} sw={2.6} /></div>
-          <div>
-            <h1>Úm ba la mở ra mớ task <span className="brand-tag">EB·IC·EE</span></h1>
-            <p>{doneCount}/{total} task đã xong · {members.map((m) => m.name).join(' · ')}</p>
-          </div>
+          <span className="brand-tag lg">EB·IC·EE</span>
         </div>
         <div className="toolbar">
-          {/* Sync indicator */}
-          <div className="sync-badge">
-            <div id="__sync_dot" className="sync-dot" />
-            <span id="__sync_lbl">Đang kết nối…</span>
-          </div>
           <div className="seg viewseg">
             {[['board', 'Board'], ['week', 'Tuần'], ['month', 'Tháng']].map(([k, l]) => (
               <button key={k} className={'seg-btn' + (view === k ? ' on' : '')} onClick={() => setView(k)}>{l}</button>
@@ -449,7 +592,6 @@ function App() {
             </div>
           )}
           <button className="iconbtn tagbtn" onClick={() => setShowTags(true)} title="Quản lý tag & sự kiện" aria-label="Quản lý tag"><IconTag size={18} /></button>
-          <button className="iconbtn" onClick={() => setShowSettings(true)} title="Cài đặt thành viên" aria-label="Cài đặt"><IconGear size={18} /></button>
         </div>
       </header>
 
@@ -457,14 +599,14 @@ function App() {
         <main className="page">
           <div className="board">
             {members.map((m) => (
-              <Column key={m.id} member={m} name={m.name} color={m.color} avatar={avatars[m.id]}
+              <Column key={m.id} member={m} name={m.name} color={m.color}
                       tasks={tasks} tags={tags} sort={sort} scope={taskScope}
-                      onToggle={toggle} onOpen={openEdit} onQuickAdd={quickAdd} onAddClick={openNew}
+                      onToggle={toggle} onOpen={openEdit} onQuickAdd={quickAdd} onAddClick={openNew} onCustomize={customizeMember}
                       drag={drag} setDrag={setDrag} dropInfo={dropInfo} setDropInfo={setDropInfo} onDrop={doDrop} />
             ))}
           </div>
           <EventsSection events={events} tasks={tasks} members={members}
-                         onToggle={toggle} onOpen={openEdit} onAddPrep={addPrep}
+                         onToggle={toggle} onOpen={openEdit} onAddPrep={addPrep} onAddTask={openNewForEvent}
                          onCreateEvent={() => setShowTags(true)} onEditEvent={() => setShowTags(true)}
                          onUpdateEvent={updateTag} onSetPhase={setPhase} />
           <CommCalendar posts={posts} channels={channels} members={members} events={events}
@@ -474,7 +616,7 @@ function App() {
                         view={commView} setView={setCommView}
                         note={commNotes[commRef.slice(0, 7)] || ''}
                         onNote={(text) => setCommNotes((prev) => ({ ...prev, [commRef.slice(0, 7)]: text }))}
-                        onOpenPost={openEditPost} onNewPost={openNewPost} onTogglePosted={togglePosted} />
+                        onOpenPost={openEditPost} onNewPost={openNewPost} onTogglePosted={togglePosted} onOpenEvent={() => setShowTags(true)} />
         </main>
       ) : (
         <main className="report-main">
@@ -485,7 +627,7 @@ function App() {
               <button className="iconbtn sm" onClick={() => stepPeriod(1)} aria-label="Kỳ sau"><IconChevR size={16} /></button>
               <button className="btn ghost sm" onClick={() => setRef(todayISO())}>Hôm nay</button>
             </div>
-            <div className="subbar-title">{view === 'week' ? 'Báo cáo tuần · cho team' : 'Báo cáo tháng · cho Head of HR'}</div>
+            <div className="subbar-title">{view === 'week' ? 'Báo cáo tuần · cho team' : 'Báo cáo tháng · cho Sếp Hải'}</div>
             <button className="btn export" onClick={() => window.print()}><IconPrint size={16} /> In / Xuất PDF</button>
           </div>
           {view === 'week'
@@ -495,73 +637,32 @@ function App() {
       )}
 
       <TaskEditor task={editing} member={editing ? memberOf(editing.owner) : members[0]}
-                  allTags={tags} onCreateTag={createTag}
+                  members={members} allTags={tags} onCreateTag={createTag}
                   onSave={saveTask} onDelete={deleteTask} onClose={() => setEditing(null)} />
 
       <TagManager open={showTags} tags={tags} tasks={tasks}
                   onUpdate={updateTag} onDelete={deleteTag} onAdd={addTag} onClose={() => setShowTags(false)} />
 
       <PostEditor post={editingPost} members={members} channels={channels} events={events}
-                  onCreateChannel={createChannel} onSave={savePost} onDelete={deletePost} onClose={() => setEditingPost(null)} />
+                  onCreateChannel={createChannel} onCreateEvent={createEventTag} onSave={savePost} onDelete={deletePost} onClose={() => setEditingPost(null)} />
 
-      {showSettings && (
-        <div className="scrim" onMouseDown={() => setShowSettings(false)}>
-          <div className="modal" onMouseDown={(e) => e.stopPropagation()} style={{'--accent':'#8B5CF6',maxWidth:440}}>
-            <div className="modal-head">
-              <span className="modal-owner"><IconGear size={16} /> Cài đặt</span>
-              <button className="iconbtn" onClick={() => setShowSettings(false)} aria-label="Đóng"><IconClose /></button>
-            </div>
-            <div className="modal-body" style={{display:'flex',flexDirection:'column',gap:20}}>
-              {MEMBERS.map((m, i) => {
-                const member = members[i];
-                return (
-                  <div key={m.id} style={{display:'flex',flexDirection:'column',gap:10,padding:'14px 16px',borderRadius:14,border:'1px solid rgba(20,22,30,.08)',background:'rgba(20,22,30,.02)'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:12}}>
-                      <label style={{position:'relative',cursor:'pointer',flexShrink:0}} title="Click để đổi ảnh">
-                        {avatars[m.id]
-                          ? <img src={avatars[m.id]} style={{width:44,height:44,borderRadius:13,objectFit:'cover',boxShadow:'0 2px 8px rgba(0,0,0,.15)'}} />
-                          : <span className="avatar" style={{background:member.color,width:44,height:44,borderRadius:13,fontSize:18}}>{member.name.charAt(0)}</span>
-                        }
-                        <span style={{position:'absolute',bottom:-4,right:-4,background:'#fff',borderRadius:'50%',width:18,height:18,display:'grid',placeItems:'center',boxShadow:'0 1px 4px rgba(0,0,0,.2)',fontSize:11}}>📷</span>
-                        <input type="file" accept="image/*" style={{display:'none'}} onChange={(e) => {
-                          const file = e.target.files[0]; if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = (ev) => setAvatars((prev) => ({...prev, [m.id]: ev.target.result}));
-                          reader.readAsDataURL(file);
-                        }} />
-                      </label>
-                      <input
-                        value={t[m.nameKey]}
-                        onChange={(e) => setTweak(m.nameKey, e.target.value)}
-                        style={{flex:1,border:'1px solid rgba(20,22,30,.12)',borderRadius:9,padding:'8px 12px',fontSize:14,fontWeight:600,fontFamily:'inherit',background:'#fff'}}
-                        placeholder={`Tên thành viên ${i+1}`}
-                      />
-                    </div>
-                    <div style={{display:'flex',alignItems:'center',gap:10}}>
-                      <span style={{fontSize:12,fontWeight:600,color:'#8B909E',width:40,flexShrink:0}}>Màu</span>
-                      <input type="color" value={t[m.colorKey]} onChange={(e) => setTweak(m.colorKey, e.target.value)}
-                        style={{width:36,height:36,border:'none',borderRadius:9,cursor:'pointer',padding:2,background:'none'}} />
-                      <span style={{fontSize:12,color:'#8B909E'}}>{t[m.colorKey]}</span>
-                    </div>
-                  </div>
-                );
-              })}
-              <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                <span style={{fontSize:12,fontWeight:600,color:'#8B909E'}}>NỀN</span>
-                <div style={{display:'flex',gap:8}}>
-                  {[['plain','Trơn'],['grid','Lưới'],['dots','Chấm']].map(([v,l]) => (
-                    <button key={v} onClick={() => setTweak('bg', v)}
-                      style={{flex:1,padding:'8px 0',borderRadius:9,border:'1.5px solid '+(t.bg===v?'#8B5CF6':'rgba(20,22,30,.12)'),
-                        background:t.bg===v?'rgba(139,92,246,.08)':'#fff',
-                        color:t.bg===v?'#8B5CF6':'#23262F',fontWeight:600,fontSize:13,cursor:'pointer',fontFamily:'inherit'}}>{l}</button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Thành viên" />
+        {MEMBERS.map((m, i) => (
+          <React.Fragment key={m.id}>
+            <TweakText label={`Tên #${i + 1}`} value={t[m.nameKey]} onChange={(v) => setTweak(m.nameKey, v)} />
+            <TweakText label="Icon (emoji)" value={t[m.iconKey]} onChange={(v) => setTweak(m.iconKey, v)} />
+            <TweakColor label="Màu" value={t[m.colorKey]} options={memberColorOpts[m.id]} onChange={(v) => setTweak(m.colorKey, v)} />
+          </React.Fragment>
+        ))}
+        <TweakSection label="Giao diện" />
+        <TweakRadio label="Nền" value={t.bg || 'grid'}
+                    options={[{ value: 'grid', label: 'Lưới' }, { value: 'dots', label: 'Chấm' }, { value: 'plain', label: 'Trơn' }]}
+                    onChange={(v) => setTweak('bg', v)} />
+      </TweaksPanel>
     </div>
+    {showIntro && <IntroOverlay onReveal={() => setRevealApp(true)} onClose={() => setShowIntro(false)} />}
+    </>
   );
 }
 

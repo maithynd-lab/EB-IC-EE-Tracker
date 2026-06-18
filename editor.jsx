@@ -38,7 +38,7 @@ function TagPicker({ allTags, value, onChange, onCreateTag }) {
   const matches = allTags.filter((t) => !value.includes(t.id) && t.name.toLowerCase().includes(ql));
   const exact = allTags.some((t) => t.name.toLowerCase() === ql);
 
-  const add = (id) => { onChange([...value, id]); setQ(''); };
+  const add = (id) => { onChange([...value, id]); setQ(''); setOpen(false); };
   const remove = (id) => onChange(value.filter((x) => x !== id));
   const create = (color) => {
     const name = q.trim();
@@ -46,6 +46,7 @@ function TagPicker({ allTags, value, onChange, onCreateTag }) {
     const t = onCreateTag(name, color);
     onChange([...value, t.id]);
     setQ('');
+    setOpen(false);
   };
 
   return (
@@ -106,11 +107,12 @@ function TagPicker({ allTags, value, onChange, onCreateTag }) {
 
 // ── TaskEditor modal ───────────────────────────────────────────────────────
 // props: task (draft or null=closed), member, allTags, onCreateTag, onSave, onDelete, onClose
-function TaskEditor({ task, member, allTags, onCreateTag, onSave, onDelete, onClose }) {
+function TaskEditor({ task, member, members, allTags, onCreateTag, onSave, onDelete, onClose }) {
   const [draft, setDraft] = React.useState(task);
   const [calOpen, setCalOpen] = React.useState(false);
   React.useEffect(() => { setDraft(task); setCalOpen(false); }, [task]);
   if (!task || !draft) return null;
+  const cur = (members && members.find((m) => m.id === draft.owner)) || member;
 
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
   const canSave = draft.title.trim().length > 0;
@@ -118,11 +120,11 @@ function TaskEditor({ task, member, allTags, onCreateTag, onSave, onDelete, onCl
 
   return (
     <div className="scrim" onMouseDown={onClose}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()} style={{ '--accent': member.color }}>
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()} style={{ '--accent': cur.color }}>
         <div className="modal-head">
           <span className="modal-owner">
-            <span className="avatar sm" style={{ background: member.color }}>{member.name.charAt(0)}</span>
-            {task.isNew ? 'Task mới' : 'Sửa task'} · {member.name}
+            <span className="avatar sm" style={{ background: cur.color }}>{cur.icon || cur.name.charAt(0)}</span>
+            {task.isNew ? 'Task mới' : 'Sửa task'} · {cur.name}
           </span>
           <button className="iconbtn" onClick={onClose} aria-label="Đóng"><IconClose /></button>
         </div>
@@ -156,6 +158,19 @@ function TaskEditor({ task, member, allTags, onCreateTag, onSave, onDelete, onCl
               </div>
             </div>
           </div>
+
+          {members && members.length > 1 && (
+            <div className="field">
+              <div className="label"><IconUsers size={14} /> PIC</div>
+              <div className="owner-pick">
+                {members.map((m) => (
+                  <button key={m.id} className={'avatar pick-lg' + (draft.owner === m.id ? ' on' : '')}
+                          style={{ background: draft.owner === m.id ? m.color : 'transparent', color: draft.owner === m.id ? '#fff' : m.color, boxShadow: `inset 0 0 0 2px ${m.color}` }}
+                          onClick={() => set({ owner: m.id })} title={m.name}>{m.icon || m.name.charAt(0)}</button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="field">
             <div className="label"><IconCalendar size={14} /> Deadline</div>
