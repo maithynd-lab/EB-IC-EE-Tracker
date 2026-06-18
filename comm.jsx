@@ -201,7 +201,7 @@ function PostEditor({ post, members, channels, events, onCreateChannel, onCreate
 
 // ── PostChip (in a day cell) ───────────────────────────────────────────────
 function PostChip({ post, channels, events, onOpen, onToggle }) {
-  const chs = post.channelIds.map((id) => channels.find((c) => c.id === id)).filter(Boolean);
+  const chs = (post.channelIds || []).map((id) => (channels || []).find((c) => c.id === id)).filter(Boolean);
   const ev = post.eventId ? events.find((e) => e.id === post.eventId) : null;
   return (
     <div className={'cpost' + (post.posted ? ' posted' : '')} onClick={() => onOpen(post)}
@@ -230,7 +230,7 @@ function CommList({ posts, channels, members, events, onOpen, onToggle }) {
         <div key={date} className="comm-list-group">
           <div className="comm-list-date">{fmtFullDate(date)}</div>
           {groups[date].sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0)).map((p) => {
-            const chs = p.channelIds.map((id) => channels.find((c) => c.id === id)).filter(Boolean);
+            const chs = (p.channelIds || []).map((id) => (channels || []).find((c) => c.id === id)).filter(Boolean);
             const pic = members.find((m) => m.id === p.pic);
             const ev = p.eventId ? events.find((e) => e.id === p.eventId) : null;
             return (
