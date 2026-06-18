@@ -17,9 +17,9 @@ function ChannelPicker({ channels, value, onChange, onCreate }) {
   const ql = q.trim().toLowerCase();
   const matches = channels.filter((c) => !value.includes(c.id) && c.name.toLowerCase().includes(ql));
   const exact = channels.some((c) => c.name.toLowerCase() === ql);
-  const add = (id) => { onChange([...value, id]); setQ(''); };
+  const add = (id) => { onChange([...value, id]); setQ(''); setOpen(false); };
   const remove = (id) => onChange(value.filter((x) => x !== id));
-  const create = (color) => { const name = q.trim(); if (!name) return; const c = onCreate(name, color); onChange([...value, c.id]); setQ(''); };
+  const create = (color) => { const name = q.trim(); if (!name) return; const c = onCreate(name, color); onChange([...value, c.id]); setQ(''); setOpen(false); };
   return (
     <div className="tagpicker" ref={ref}>
       <div className="tagpicker-field" onClick={() => setOpen(true)}>
