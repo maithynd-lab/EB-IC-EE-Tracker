@@ -388,27 +388,34 @@
   .ev-note.dragging{opacity:.4}
   .ev-note.done{background:#FAFAF9;box-shadow:none}
   @keyframes noteIn{from{opacity:0;transform:translateY(-5px)}}
-  .ev-note-main{display:flex;align-items:center;gap:5px}
-  .ev-note-grip{flex-shrink:0;cursor:grab;color:#C2C5CE;font-size:14px;line-height:1;padding:2px 1px;user-select:none}
+  .ev-note-main{display:flex;align-items:flex-start;gap:5px}
+  .ev-note-grip{flex-shrink:0;cursor:grab;color:#C2C5CE;font-size:14px;line-height:1;padding:6px 1px;user-select:none}
   .ev-note-grip:active{cursor:grabbing}
   .ev-note-text{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:500;
-    line-height:1.4;color:var(--ink);outline:none;padding:4px 6px;border-radius:7px}
+    line-height:1.45;color:var(--ink);outline:none;padding:4px 6px;border-radius:7px;
+    resize:none;overflow:hidden;white-space:pre-wrap;word-break:break-word;font-family:inherit}
   .ev-note-text:hover{background:rgba(20,22,30,.04)}
   .ev-note-text:focus{background:#fff;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
   .ev-note.done .ev-note-text{color:var(--ink)}
   .ev-note-sol{margin-left:22px;border:1px solid color-mix(in srgb,#22C55E 35%,var(--line));
     background:color-mix(in srgb,#22C55E 6%,#fff);border-radius:8px;padding:6px 9px;font:inherit;font-size:12px;
-    font-weight:600;color:#15803D;outline:none;text-decoration:none}
+    font-weight:600;color:#15803D;outline:none;text-decoration:none;
+    resize:none;overflow:hidden;white-space:pre-wrap;word-break:break-word;line-height:1.45;font-family:inherit}
   .ev-note-sol::placeholder{color:#8FBFA2;font-weight:500}
   .ev-note-sol:focus{border-color:#22C55E;background:#fff;box-shadow:0 0 0 2px rgba(34,197,94,.16)}
   .ev-note-btn{flex-shrink:0;display:grid;place-items:center;width:21px;height:21px;border:0;background:transparent;
     border-radius:6px;color:var(--muted);cursor:pointer;font-size:13px;font-weight:700;transition:.12s}
   .ev-note-btn:hover{background:rgba(20,22,30,.08);color:var(--ink)}
   .ev-note-btn.ok:hover{color:#16A34A;background:rgba(34,197,94,.13)}
-  .ev-note-add{display:flex;gap:6px;margin-top:1px}
-  .ev-note-add input{flex:1;border:1px dashed var(--line);background:#fff;border-radius:9px;padding:7px 10px;
-    font:inherit;font-size:12.5px;font-weight:500;color:var(--ink);outline:none}
-  .ev-note-add input:focus{border-style:solid;border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 12%,transparent)}
+  .ev-note-add{display:flex;gap:6px;margin-top:1px;align-items:flex-end}
+  .ev-note-add textarea{flex:1;min-width:0;border:1px dashed var(--line);background:#fff;border-radius:9px;padding:7px 10px;
+    font:inherit;font-size:12.5px;font-weight:500;color:var(--ink);outline:none;
+    resize:none;overflow:hidden;white-space:pre-wrap;word-break:break-word;line-height:1.45;font-family:inherit}
+  .ev-note-add textarea:focus{border-style:solid;border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 12%,transparent)}
+  .ev-note-add-btn{flex-shrink:0;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:9px;
+    background:var(--accent);color:#fff;cursor:pointer;transition:.12s}
+  .ev-note-add-btn:hover:not(:disabled){filter:brightness(1.06)}
+  .ev-note-add-btn:disabled{opacity:.4;cursor:default}
 
   .event-tasks{padding:8px 14px 4px;display:flex;flex-direction:column;gap:1px}
   .ev-row{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:9px;transition:.12s}
@@ -839,7 +846,7 @@
 </template>
 <div id="root"></div>
 
-<!-- Firebase SDK — real-time sync -->
+<!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
   import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";

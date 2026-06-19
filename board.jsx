@@ -17,13 +17,39 @@ const LS = { tasks: 'ttb_tasks_v2', tags: 'ttb_tags_v3', sort: 'ttb_sort_v2', po
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function useLocal(key, initial) {
-  const [val, setVal] = React.useState(() => {
+  const [val, setValState] = React.useState(() => {
     try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : initial; }
     catch { return initial; }
   });
+  const skipNextRef = React.useRef(false);
   React.useEffect(() => {
     try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
   }, [key, val]);
+  React.useEffect(() => {
+    if (!window.__firebaseDB) return;
+    const { ref, onValue } = window.__firebaseDB;
+    const unsub = onValue(ref('ttb/' + key), (snap) => {
+      if (skipNextRef.current) { skipNextRef.current = false; return; }
+      const data = snap.val();
+      if (data !== null && data !== undefined) {
+        setValState(data);
+        try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+      }
+    });
+    return unsub;
+  }, [key]);
+  const setVal = React.useCallback((updater) => {
+    setValState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (window.__firebaseDB) {
+        const { ref, set } = window.__firebaseDB;
+        skipNextRef.current = true;
+        set(ref('ttb/' + key), next).catch(() => { skipNextRef.current = false; });
+      }
+      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [key]);
   return [val, setVal];
 }
 
@@ -654,6 +680,7 @@ function App() {
           <span className="brand-tag lg">EB·IC·EE</span>
         </div>
         <div className="toolbar">
+          <div className="sync-badge"><div id="__sync_dot" className="sync-dot" /><span id="__sync_lbl">Đang kết nối…</span></div>
           <div className="seg viewseg">
             {[['board', 'Board'], ['week', 'Tuần'], ['month', 'Tháng']].map(([k, l]) => (
               <button key={k} className={'seg-btn' + (view === k ? ' on' : '')} onClick={() => setView(k)}>{l}</button>
