@@ -201,7 +201,7 @@ function PostEditor({ post, members, channels, events, onCreateChannel, onCreate
 
 // ── PostChip (in a day cell) ───────────────────────────────────────────────
 function PostChip({ post, channels, events, onOpen, onToggle, dragProps }) {
-  const chs = (post.channelIds || []).map((id) => (channels || []).find((c) => c.id === id)).filter(Boolean);
+  const chs = post.channelIds.map((id) => channels.find((c) => c.id === id)).filter(Boolean);
   const ev = post.eventId ? events.find((e) => e.id === post.eventId) : null;
   return (
     <div className={'cpost' + (post.posted ? ' posted' : '')} onClick={() => onOpen(post)} {...(dragProps || {})}
@@ -230,7 +230,7 @@ function CommList({ posts, channels, members, events, onOpen, onToggle }) {
         <div key={date} className="comm-list-group">
           <div className="comm-list-date">{fmtFullDate(date)}</div>
           {groups[date].sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0)).map((p) => {
-            const chs = (p.channelIds || []).map((id) => (channels || []).find((c) => c.id === id)).filter(Boolean);
+            const chs = p.channelIds.map((id) => channels.find((c) => c.id === id)).filter(Boolean);
             const pic = members.find((m) => m.id === p.pic);
             const ev = p.eventId ? events.find((e) => e.id === p.eventId) : null;
             return (
@@ -249,8 +249,31 @@ function CommList({ posts, channels, members, events, onOpen, onToggle }) {
   );
 }
 
+// ── CommAddBtn: '+' on a day opens a tiny menu (post / event) ───────────────
+function CommAddBtn({ iso, onNewPost, onNewEvent }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+  return (
+    <div className="comm-add-wrap" ref={ref}>
+      <button className="comm-add" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} aria-label="Thêm"><IconPlus size={13} /></button>
+      {open && (
+        <div className="pop comm-add-pop" onClick={(e) => e.stopPropagation()}>
+          <button className="comm-add-opt" onClick={() => { setOpen(false); onNewPost(iso); }}><IconNote size={14} /> Bài đăng</button>
+          <button className="comm-add-opt" onClick={() => { setOpen(false); onNewEvent && onNewEvent(iso); }}><IconCalendar size={14} /> Sự kiện</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CommCalendar ───────────────────────────────────────────────────────────
-function CommCalendar({ posts, channels, members, events, refDate, setRefDate, view, setView, onOpenPost, onNewPost, onTogglePosted, onOpenEvent, onUpdatePost, onUpdateEvent }) {
+function CommCalendar({ posts, channels, members, events, holidays, refDate, setRefDate, view, setView, onOpenPost, onNewPost, onNewEvent, onTogglePosted, onOpenEvent, onUpdatePost, onUpdateEvent }) {
   const d = parseISO(refDate), y = d.getFullYear(), m = d.getMonth();
   const first = new Date(y, m, 1), startDow = (first.getDay() + 6) % 7;
   const dim = new Date(y, m + 1, 0).getDate();
@@ -262,6 +285,8 @@ function CommCalendar({ posts, channels, members, events, refDate, setRefDate, v
   posts.forEach((p) => { (byDate[p.date] = byDate[p.date] || []).push(p); });
   const evByDate = {};
   events.forEach((e) => { if (e.date) (evByDate[e.date] = evByDate[e.date] || []).push(e); });
+  const holByDate = {};
+  (holidays || []).forEach((h) => { (holByDate[h.date] = holByDate[h.date] || []).push(h); });
   const today = todayISO();
 
   const wr = weekRange(refDate);
@@ -289,11 +314,17 @@ function CommCalendar({ posts, channels, members, events, refDate, setRefDate, v
 
   const dayChips = (iso) => (
     <>
+      {(holByDate[iso] || []).map((h, i) => (
+        <div key={'h' + i} className="choliday" title={'Ngày lễ: ' + h.name}>
+          <span className="choliday-ic">{h.icon}</span>
+          <span className="choliday-name">{h.name}</span>
+        </div>
+      ))}
       {(evByDate[iso] || []).map((e) => (
         <button key={e.id} className="cevent" style={{ background: e.color }} draggable
                 onDragStart={startDrag('event', e.id)} onDragEnd={endDrag}
                 onClick={(ev) => { ev.stopPropagation(); onOpenEvent && onOpenEvent(e); }} title={'Sự kiện: ' + e.name}>
-          <IconCalendar size={10} /> <span>{e.name}</span>
+          {e.icon ? <span className="cevent-ic">{e.icon}</span> : <IconCalendar size={10} />} <span>{e.name}</span>
         </button>
       ))}
       {(byDate[iso] || []).slice().sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0))
@@ -335,7 +366,7 @@ function CommCalendar({ posts, channels, members, events, refDate, setRefDate, v
                 <div className="comm-wcol-h">
                   <span className="comm-wcol-dow">{CDOW[i]}</span>
                   <span className="comm-wcol-day">{dt.getDate()}</span>
-                  <button className="comm-add" onClick={() => onNewPost(iso)} aria-label="Thêm bài"><IconPlus size={13} /></button>
+                  <CommAddBtn iso={iso} onNewPost={onNewPost} onNewEvent={onNewEvent} />
                 </div>
                 <div className="comm-wcol-body">{dayChips(iso)}</div>
               </div>
@@ -353,7 +384,7 @@ function CommCalendar({ posts, channels, members, events, refDate, setRefDate, v
                 <div key={i} className={'comm-cell' + (iso === today ? ' today' : '') + (dropISO === iso ? ' dropping' : '')} onDoubleClick={() => onNewPost(iso)} {...dropProps(iso)}>
                   <div className="comm-cell-h">
                     <span className="comm-day">{dd}</span>
-                    <button className="comm-add" onClick={() => onNewPost(iso)} aria-label="Thêm bài"><IconPlus size={13} /></button>
+                    <CommAddBtn iso={iso} onNewPost={onNewPost} onNewEvent={onNewEvent} />
                   </div>
                   <div className="comm-cell-posts">{dayChips(iso)}</div>
                 </div>

@@ -29,9 +29,35 @@ const IconUsers   = (p) => <Ic {...p} d={<><circle cx="9" cy="8" r="3.2" /><path
 const IconList    = (p) => <Ic {...p} d={<><path d="M8 6h12M8 12h12M8 18h12" /><circle cx="4" cy="6" r="1.1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.1" fill="currentColor" stroke="none"/></>} />;
 const IconGrid    = (p) => <Ic {...p} d={<><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></>} />;
 const IconColumns = (p) => <Ic {...p} d={<><rect x="3.5" y="4" width="5" height="16" rx="1.4"/><rect x="9.5" y="4" width="5" height="16" rx="1.4"/><rect x="15.5" y="4" width="5" height="16" rx="1.4"/></>} />;
+const IconCalPlus = (p) => <Ic {...p} d={<><rect x="3.5" y="5" width="17" height="16" rx="3" /><path d="M3.5 10h17" /><path d="M8 3v4M16 3v4" /><path d="M12 13.5v4M10 15.5h4" /></>} />;
+
+// Build a Google Calendar "add event" link. Pure client-side, free, works offline to compose.
+// startTime/endTime are "HH:MM" (local). If startTime set => timed event, else all-day.
+function gcalUrl({ title, date, endDate, startTime, endTime, details, location }) {
+  if (!date) return '#';
+  const compactDay = (iso) => iso.replace(/-/g, '');
+  const nextDay = (iso) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + 1); return '' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); };
+  let dates;
+  if (startTime) {
+    const hms = (s) => s.replace(':', '') + '00';
+    let endISODate = endDate || date, et = endTime;
+    if (!et) {
+      const d = new Date(date + 'T' + startTime + ':00'); d.setHours(d.getHours() + 1);
+      et = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      endISODate = '' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    dates = compactDay(date) + 'T' + hms(startTime) + '/' + compactDay(endISODate) + 'T' + hms(et);
+  } else {
+    dates = compactDay(date) + '/' + nextDay(endDate || date);
+  }
+  const params = new URLSearchParams({ action: 'TEMPLATE', text: title || '', dates });
+  if (details) params.set('details', details);
+  if (location) params.set('location', location);
+  return 'https://calendar.google.com/calendar/render?' + params.toString();
+}
 
 Object.assign(window, {
   IconCheck, IconPlus, IconClose, IconTrash, IconCalendar,
   IconChevL, IconChevR, IconSort, IconFlag, IconTag, IconNote, IconDrag, IconPrint, IconClock, IconGear, IconChevD,
-  IconPin, IconLink, IconUsers, IconList, IconGrid, IconColumns,
+  IconPin, IconLink, IconUsers, IconList, IconGrid, IconColumns, IconCalPlus, gcalUrl,
 });

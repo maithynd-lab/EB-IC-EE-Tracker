@@ -142,6 +142,11 @@
   .btn.ghost:hover{background:rgba(20,22,30,.1)}
   .btn.danger-ghost{background:transparent;color:#E5484D;padding-left:10px}
   .btn.danger-ghost:hover{background:rgba(229,72,77,.1)}
+  a.btn,a.iconbtn{text-decoration:none}
+  .gcal-link{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;font-weight:600;
+    color:#3B82F6;text-decoration:none;width:fit-content}
+  .gcal-link:hover{text-decoration:underline}
+  .gcal-link svg{flex-shrink:0}
 
   /* modal */
   .scrim{position:fixed;inset:0;z-index:1000;background:rgba(20,22,30,.34);backdrop-filter:blur(4px);
@@ -313,7 +318,7 @@
   .iconbtn.danger:hover{background:rgba(229,72,77,.1)}
 
   /* ── events section ── */
-  .events{padding:14px 26px 40px;max-width:1240px}
+  .events{padding:14px 26px 40px}
   .events-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:18px 0 16px}
   .events-head h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em}
   .events-head p{margin:3px 0 0;font-size:12.5px;color:var(--muted);font-weight:500}
@@ -455,8 +460,55 @@
 
   /* ── event dashboard ── */
   .event-dash{display:flex;gap:16px;padding:14px 18px 4px}
-  .event-cover{width:300px;flex-shrink:0;aspect-ratio:16/9;border-radius:14px;overflow:hidden;
-    background:color-mix(in srgb,var(--accent) 8%,#f4f4f6);border:1px solid var(--line)}
+  .event-icon-wrap{position:relative;flex-shrink:0}
+  .event-icon-tile{position:relative;width:112px;height:112px;border-radius:18px;cursor:pointer;
+    display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);
+    background:color-mix(in srgb,var(--accent) 13%,#fff);transition:.12s}
+  .event-icon-tile:hover{background:color-mix(in srgb,var(--accent) 18%,#fff);transform:translateY(-1px);
+    box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .event-icon-glyph{font-size:54px;line-height:1}
+  .event-icon-edit{position:absolute;right:7px;bottom:7px;width:22px;height:22px;border-radius:50%;
+    display:grid;place-items:center;background:#fff;color:var(--accent);
+    box-shadow:0 1px 4px rgba(20,22,30,.18);opacity:0;transition:.12s}
+  .event-icon-tile:hover .event-icon-edit{opacity:1}
+  .event-icon-pop{left:0;right:auto;display:grid;grid-template-columns:repeat(6,1fr);gap:4px;width:268px;max-height:240px;overflow-y:auto}
+  .event-icon-opt{width:36px;height:36px;border-radius:10px;border:0;background:transparent;cursor:pointer;
+    font-size:22px;line-height:1;display:grid;place-items:center;transition:.1s}
+  .event-icon-opt:hover{background:rgba(20,22,30,.07)}
+  .event-icon-opt.on{background:color-mix(in srgb,var(--accent) 18%,#fff);box-shadow:inset 0 0 0 1.5px var(--accent)}
+
+  /* ── event editor modal ── */
+  .ev-ed-top{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+  .ev-ed-preview{width:56px;height:56px;flex-shrink:0;border-radius:14px;border:1px solid;display:grid;place-items:center}
+  .ev-ed-preview-glyph{font-size:30px;line-height:1}
+  .ev-ed-colors{display:flex;flex-wrap:wrap;gap:7px;align-items:center;min-height:34px}
+  .ev-ed-icons{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;max-height:176px;overflow-y:auto;
+    padding:8px;border:1px solid var(--line);border-radius:12px;background:#FBFBFA}
+  .ev-ed-time{display:flex;align-items:center;gap:8px}
+  .ev-time-input{height:36px;border:1px solid var(--line);border-radius:10px;background:#FBFBFA;padding:0 10px;
+    font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);outline:none}
+  .ev-time-input:focus{border-color:var(--accent);background:#fff}
+  .ev-time-sep{color:var(--muted);font-weight:700}
+  .ev-time-clear{width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:var(--muted);
+    cursor:pointer;display:grid;place-items:center}
+  .ev-time-clear:hover{background:rgba(20,22,30,.07);color:var(--ink)}
+  .ev-ed-hint{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.4}
+
+  /* ── comm 'add' menu (post / event) ── */
+  .comm-add-wrap{position:relative}
+  .comm-add-pop{left:auto;right:0;padding:6px;display:flex;flex-direction:column;gap:2px;width:148px}
+  .comm-add-opt{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;cursor:pointer;
+    padding:8px 10px;border-radius:9px;font:inherit;font-size:13px;font-weight:600;color:var(--ink);text-align:left}
+  .comm-add-opt:hover{background:rgba(20,22,30,.06)}
+  .comm-add-opt svg{color:var(--muted);flex-shrink:0}
+
+  /* ── holiday note chip on comm calendar ── */
+  .choliday{display:flex;align-items:center;gap:4px;width:100%;border-radius:6px;padding:2px 6px;
+    font-size:10px;font-weight:700;line-height:1.5;cursor:default;
+    color:#9A3412;background:repeating-linear-gradient(135deg,#FFF7ED,#FFF7ED 6px,#FEF0E2 6px,#FEF0E2 12px);
+    border:1px dashed #FDBA74}
+  .choliday-ic{flex-shrink:0;font-size:11px;line-height:1}
+  .choliday-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .event-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
   .event-desc{width:100%;border:1px solid var(--line);border-radius:11px;padding:9px 11px;font:inherit;
     font-size:13px;font-weight:500;color:var(--ink);background:#FBFBFA;resize:none;outline:none;line-height:1.45}
@@ -503,7 +555,7 @@
   .comm-notes-ta{flex:1;min-height:280px;border:1px solid var(--line);border-radius:12px;padding:10px 11px;
     font:inherit;font-size:13px;font-weight:500;line-height:1.5;color:var(--ink);background:#FBFBFA;resize:none;outline:none}
   .comm-notes-ta:focus{border-color:#3B82F6;background:#fff}
-  .comm{padding:14px 26px 48px;max-width:1240px}
+  .comm{padding:14px 26px 48px}
   .comm-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:24px 0 16px}
   .comm-head h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em}
   .comm-head p{margin:3px 0 0;font-size:12.5px;color:var(--muted);font-weight:500}
@@ -724,7 +776,7 @@
   /* ── column customize popover ── */
   .colcust-btn{color:var(--muted)}
   .colcust-btn:hover{color:var(--ink)}
-  .colcust-pop{position:absolute;top:calc(100% - 4px);right:12px;z-index:30;width:236px;background:#fff;
+  .colcust-pop{position:absolute;top:calc(100% - 4px);right:12px;z-index:30;width:252px;background:#fff;
     border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lift);padding:12px;
     display:flex;flex-direction:column;gap:8px}
   .colcust-sec{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
@@ -732,9 +784,15 @@
   .colcust-input{width:40px;height:34px;flex-shrink:0;text-align:center;border:1px solid var(--line);border-radius:9px;
     background:#FBFBFA;font:inherit;font-size:17px;font-weight:700;color:var(--ink);outline:none}
   .colcust-input:focus{border-color:var(--accent);background:#fff}
-  .colcust-emojis{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;flex:1}
+  .colcust-none{flex:1;height:34px;border:1px solid var(--line);border-radius:9px;background:#FBFBFA;cursor:pointer;
+    font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:6px;transition:.12s}
+  .colcust-none:hover{border-color:var(--accent);color:var(--ink)}
+  .colcust-none.on{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,#fff)}
+  .colcust-none-prev{display:grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;font-weight:800}
+  .colcust-emojis{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-height:152px;overflow-y:auto;padding-right:2px}
   .colcust-emoji{border:0;background:transparent;border-radius:7px;font-size:17px;line-height:1;padding:3px 0;cursor:pointer;transition:.12s}
   .colcust-emoji:hover{background:rgba(20,22,30,.07);transform:scale(1.12)}
+  .colcust-emoji.on{background:color-mix(in srgb,var(--accent) 18%,#fff);box-shadow:inset 0 0 0 1.5px var(--accent)}
   .colcust-colors{display:flex;flex-wrap:wrap;gap:6px}
 
   /* ── channel icon chips on calendar ── */
@@ -748,6 +806,7 @@
     box-shadow:0 1px 2px rgba(20,22,30,.12)}
   .cevent:hover{filter:brightness(1.05)}
   .cevent svg{flex-shrink:0;opacity:.92}
+  .cevent-ic{flex-shrink:0;font-size:11px;line-height:1}
   .cevent span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* ── event 'add task' button ── */

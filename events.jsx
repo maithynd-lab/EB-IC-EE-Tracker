@@ -3,6 +3,29 @@
 const EV_MONTHS = ['Th1','Th2','Th3','Th4','Th5','Th6','Th7','Th8','Th9','Th10','Th11','Th12'];
 const EV_DOW = ['CN','T2','T3','T4','T5','T6','T7'];
 
+// Icon palette for events (replaces cover image — persists with the event). macOS-style, diverse.
+const EVENT_ICONS = [
+  // team / people
+  '🤝','👥','🙌','🥳','🎉','🎊','🍻','🧑‍💼','👔','🗣️',
+  // learning / work
+  '🎓','📚','📖','✏️','📝','🧑‍🏫','💼','🗂️','📊','📈','🗓️','📅','⏰','🕐',
+  // tech / AI
+  '🤖','🧠','💻','🖥️','⌨️','📱','⚙️','🛠️','🔧','🧩','💡','🚀','🛰️','🔬','🧪','📡',
+  // security
+  '🔒','🛡️','🔐','🕵️','⚠️',
+  // travel / trip
+  '✈️','🚌','🚗','🏖️','🏝️','🗺️','🧳','⛺','🏔️','🎡',
+  // sports / health
+  '🏸','⚽','🏀','🏓','🏆','🥇','🎯','🏃','🧗','🚴','🧘','💪',
+  // celebration / seasonal / holiday
+  '🎄','🎅','🎁','🧧','🎆','🎇','🏮','🌸','🌷','🌻','🍀','🎃','🦃','❤️','💖','🌟','⭐','🌈',
+  // food
+  '🍕','🍰','🎂','🍔','☕','🍩','🥗','🍜',
+  // misc
+  '🎤','🎬','🎨','🎵','📣','📢','🔔','🏅','🎮','🎲','📷','🎥','💎','🔥','✨','🌍','🌱','🐾',
+];
+const DEFAULT_EVENT_ICON = '📅';
+
 function daysUntil(iso) { const a = parseISO(todayISO()), b = parseISO(iso); return Math.round((b - a) / 86400000); }
 function countdownLabel(iso) {
   const n = daysUntil(iso);
@@ -122,9 +145,14 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
   const [dragId, setDragId] = React.useState(null);
   const [dropPhase, setDropPhase] = React.useState(null);
   const [dateOpen, setDateOpen] = React.useState(false);
+  const [iconOpen, setIconOpen] = React.useState(false);
   const dateRef = React.useRef(null);
+  const iconRef = React.useRef(null);
   React.useEffect(() => {
-    const onDoc = (e) => { if (dateRef.current && !dateRef.current.contains(e.target)) setDateOpen(false); };
+    const onDoc = (e) => {
+      if (dateRef.current && !dateRef.current.contains(e.target)) setDateOpen(false);
+      if (iconRef.current && !iconRef.current.contains(e.target)) setIconOpen(false);
+    };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
@@ -139,7 +167,7 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
                    onChange={(e) => onUpdateEvent(event.id, { name: e.target.value })} />
             <div className="event-meta event-date-wrap" ref={dateRef}>
               <button className="event-date-btn" onClick={() => setDateOpen((o) => !o)}>
-                <IconCalendar size={13} /> {fmtFullDate(event.date)} · {countdownLabel(event.date)}
+                <IconCalendar size={13} /> {fmtFullDate(event.date)}{event.startTime ? ' · ' + event.startTime + (event.endTime ? '\u2013' + event.endTime : '') : ''} · {countdownLabel(event.date)}
               </button>
               {dateOpen && (
                 <Calendar value={event.date} onPick={(iso) => { onUpdateEvent(event.id, { date: iso }); setDateOpen(false); }}
@@ -155,14 +183,26 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
             </div>
           )}
           <span className={'event-dbadge' + (daysUntil(event.date) <= 0 ? ' hot' : '')}>{dBadge(event.date)}</span>
+          <a className="iconbtn sm" href={gcalUrl({ title: event.name, date: event.date, startTime: event.startTime, endTime: event.endTime, details: [event.desc, event.docLink].filter(Boolean).join('\n'), location: event.venue })}
+             target="_blank" rel="noopener noreferrer" title="Thêm vào Google Calendar" onClick={(e) => e.stopPropagation()}><IconCalPlus size={16} /></a>
           <button className="iconbtn sm" onClick={() => onEditEvent(event)} aria-label="Sửa sự kiện"><IconGear size={16} /></button>
         </div>
       </header>
 
       <div className="event-dash">
-        <div className="event-cover">
-          <image-slot id={'evcover-' + event.id} style={{ width: '100%', height: '100%', display: 'block' }}
-                      shape="rounded" radius="14" placeholder="Kéo ảnh bìa 16:9 vào đây"></image-slot>
+        <div className="event-icon-wrap" ref={iconRef}>
+          <button className="event-icon-tile" onClick={() => setIconOpen((o) => !o)} title="Chọn icon cho sự kiện">
+            <span className="event-icon-glyph">{event.icon || DEFAULT_EVENT_ICON}</span>
+            <span className="event-icon-edit"><IconGear size={12} /></span>
+          </button>
+          {iconOpen && (
+            <div className="pop event-icon-pop">
+              {EVENT_ICONS.map((ic) => (
+                <button key={ic} className={'event-icon-opt' + (ic === event.icon ? ' on' : '')}
+                        onClick={() => { onUpdateEvent(event.id, { icon: ic }); setIconOpen(false); }}>{ic}</button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="event-info">
           <textarea className="event-desc" value={event.desc || ''} rows={2}
@@ -170,7 +210,6 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
                     onChange={(e) => onUpdateEvent(event.id, { desc: e.target.value })} />
           <div className="event-info-grid">
             <InfoField icon={<IconPin size={14} />} value={event.venue} placeholder="Địa điểm" onChange={(v) => onUpdateEvent(event.id, { venue: v })} />
-            <InfoField icon={<IconClock size={14} />} value={event.time} placeholder="Giờ bắt đầu" onChange={(v) => onUpdateEvent(event.id, { time: v })} />
             <InfoField icon={<IconUsers size={14} />} value={event.attendees} placeholder="Số người dự kiến" onChange={(v) => onUpdateEvent(event.id, { attendees: v })} />
             <InfoField icon={<IconLink size={14} />} value={event.docLink} placeholder="Link tài liệu (Drive/Docs)" onChange={(v) => onUpdateEvent(event.id, { docLink: v })} type="url" />
           </div>
@@ -351,4 +390,80 @@ function TagManager({ open, tags, tasks, onUpdate, onDelete, onAdd, onClose }) {
   );
 }
 
-Object.assign(window, { daysUntil, countdownLabel, fmtFullDate, dBadge, EventBlock, EventsSection, TagManager });
+// ── EventEditor modal (create / edit an event = a dated tag) ────────────────
+function EventEditor({ event, onSave, onDelete, onClose }) {
+  const [draft, setDraft] = React.useState(event);
+  const [calOpen, setCalOpen] = React.useState(false);
+  React.useEffect(() => { setDraft(event); setCalOpen(false); }, [event]);
+  if (!event || !draft) return null;
+  const set = (p) => setDraft((d) => ({ ...d, ...p }));
+  const canSave = (draft.name || '').trim().length > 0;
+  return (
+    <div className="scrim" onMouseDown={onClose}>
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()} style={{ '--accent': draft.color }}>
+        <div className="modal-head">
+          <span className="modal-owner"><IconCalendar size={16} /> {event.isNew ? 'Sự kiện mới' : 'Sửa sự kiện'}</span>
+          <button className="iconbtn" onClick={onClose} aria-label="Đóng"><IconClose /></button>
+        </div>
+        <div className="modal-body">
+          <div className="ev-ed-top">
+            <div className="ev-ed-preview" style={{ background: 'color-mix(in srgb,' + draft.color + ' 14%,#fff)', borderColor: 'color-mix(in srgb,' + draft.color + ' 30%,transparent)' }}>
+              <span className="ev-ed-preview-glyph">{draft.icon || DEFAULT_EVENT_ICON}</span>
+            </div>
+            <input className="title-input" autoFocus value={draft.name} placeholder="Tên sự kiện…"
+                   onChange={(e) => set({ name: e.target.value })} />
+          </div>
+
+          <div className="field-row">
+            <div className="field">
+              <div className="label"><IconCalendar size={14} /> Ngày diễn ra</div>
+              <div className="due-picker">
+                <button className="due-btn set" onClick={() => setCalOpen((o) => !o)}><IconCalendar size={15} /> {fmtFullDate(draft.date)}</button>
+                {calOpen && <Calendar value={draft.date} onPick={(iso) => { set({ date: iso }); setCalOpen(false); }} onClear={() => setCalOpen(false)} />}
+              </div>
+            </div>
+            <div className="field">
+              <div className="label"><IconTag size={14} /> Màu</div>
+              <div className="ev-ed-colors">
+                {TAG_PALETTE.map((c) => (
+                  <button key={c} className={'swatch' + (c === draft.color ? ' on' : '')} style={{ background: c }} onClick={() => set({ color: c })} aria-label={'Màu ' + c} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="field">
+            <div className="label"><IconClock size={14} /> Giờ diễn ra</div>
+            <div className="ev-ed-time">
+              <input type="time" className="ev-time-input" value={draft.startTime || ''} onChange={(e) => set({ startTime: e.target.value })} />
+              <span className="ev-time-sep">→</span>
+              <input type="time" className="ev-time-input" value={draft.endTime || ''} onChange={(e) => set({ endTime: e.target.value })} />
+              {(draft.startTime || draft.endTime) && <button className="ev-time-clear" onClick={() => set({ startTime: '', endTime: '' })} title="Xoá giờ"><IconClose size={13} /></button>}
+            </div>
+            <div className="ev-ed-hint">Để trống = cả ngày. Có giờ → link Google Calendar tự set đúng khung giờ (kết thúc trống thì mặc định +1 giờ).</div>
+          </div>
+
+          <div className="field">
+            <div className="label">Icon</div>
+            <div className="ev-ed-icons">
+              {EVENT_ICONS.map((ic) => (
+                <button key={ic} className={'event-icon-opt' + (ic === draft.icon ? ' on' : '')} onClick={() => set({ icon: ic })}>{ic}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="modal-foot">
+          {!event.isNew ? <button className="btn danger-ghost" onClick={() => onDelete(draft.id)}><IconTrash size={16} /> Xoá</button> : <span />}
+          <div className="foot-right">
+            <a className="btn ghost" href={gcalUrl({ title: draft.name || 'Sự kiện', date: draft.date, startTime: draft.startTime, endTime: draft.endTime })}
+               target="_blank" rel="noopener noreferrer" title="Thêm vào Google Calendar"><IconCalPlus size={16} /> Google Calendar</a>
+            <button className="btn ghost" onClick={onClose}>Huỷ</button>
+            <button className="btn primary" disabled={!canSave} onClick={() => canSave && onSave(draft)}>{event.isNew ? 'Tạo sự kiện' : 'Lưu'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { daysUntil, countdownLabel, fmtFullDate, dBadge, EventBlock, EventsSection, TagManager, EventEditor, EVENT_ICONS, DEFAULT_EVENT_ICON });

@@ -13,43 +13,17 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "bg": "plain"
 }/*EDITMODE-END*/;
 
-const LS = { tasks: 'ttb_tasks_v2', tags: 'ttb_tags_v2', sort: 'ttb_sort_v2', posts: 'ttb_posts_v1', channels: 'ttb_channels_v1', scope: 'ttb_scope_v1', commNotes: 'ttb_commnotes_v1' };
+const LS = { tasks: 'ttb_tasks_v2', tags: 'ttb_tags_v3', sort: 'ttb_sort_v2', posts: 'ttb_posts_v2', channels: 'ttb_channels_v1', scope: 'ttb_scope_v1', commNotes: 'ttb_commnotes_v1' };
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function useLocal(key, initial) {
-  const [val, setValState] = React.useState(() => {
+  const [val, setVal] = React.useState(() => {
     try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : initial; }
     catch { return initial; }
   });
-  const skipNextRef = React.useRef(false);
   React.useEffect(() => {
     try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
   }, [key, val]);
-  React.useEffect(() => {
-    if (!window.__firebaseDB) return;
-    const { ref, onValue } = window.__firebaseDB;
-    const unsub = onValue(ref('ttb/' + key), (snap) => {
-      if (skipNextRef.current) { skipNextRef.current = false; return; }
-      const data = snap.val();
-      if (data !== null && data !== undefined) {
-        setValState(data);
-        try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
-      }
-    });
-    return unsub;
-  }, [key]);
-  const setVal = React.useCallback((updater) => {
-    setValState((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      if (window.__firebaseDB) {
-        const { ref, set } = window.__firebaseDB;
-        skipNextRef.current = true;
-        set(ref('ttb/' + key), next).catch(() => { skipNextRef.current = false; });
-      }
-      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, [key]);
   return [val, setVal];
 }
 
@@ -62,9 +36,10 @@ const MEMBERS = [
 // ── seed ────────────────────────────────────────────────────────────────
 const d = (off) => { const x = new Date(); x.setDate(x.getDate() + off); return toISO(x); };
 const SEED_TAGS = [
-  { id: 'tg1', name: 'Badminton Tournament', color: '#F97316', date: d(9) },
-  { id: 'tg2', name: '1h đọc sách', color: '#3B82F6', date: null },
-  { id: 'tg3', name: 'Team Event', color: '#8B5CF6', date: d(16) },
+  { id: 'tg1', name: 'Badminton Tournament', color: '#F97316', date: '2026-07-25', icon: '🏸' },
+  { id: 'tg2', name: '1h đọc sách cùng Zalopay', color: '#3B82F6', date: '2026-06-26', icon: '📖' },
+  { id: 'tg6', name: 'Claw-a-thon', color: '#22C55E', date: '2026-07-03', icon: '🐾' },
+  { id: 'tg3', name: 'Team Event', color: '#8B5CF6', date: null },
   { id: 'tg4', name: 'Design', color: '#EC4899', date: null },
   { id: 'tg5', name: 'Content', color: '#10B981', date: null },
 ];
@@ -95,11 +70,41 @@ const SEED_CHANNELS = [
   { id: 'ch5', name: 'LinkedIn', color: '#0A66C2', icon: '💼' },
 ];
 const SEED_POSTS = [
-  { id: uid(), date: d(0), title: 'Mở đăng ký giải cầu lông', channelIds: ['ch2', 'ch5'], pic: 'm1', url: '', note: 'Kèm link form', eventId: 'tg1', posted: false },
-  { id: uid(), date: d(1), title: 'Teaser sự kiện 15s', channelIds: ['ch5'], pic: 'm3', url: '', note: '', eventId: 'tg1', posted: false },
-  { id: uid(), date: d(3), title: 'Nhắc lịch thi đấu', channelIds: ['ch2', 'ch3'], pic: 'm2', url: '', note: '', eventId: 'tg1', posted: false },
-  { id: uid(), date: d(-2), title: 'Recap tuần trước', channelIds: ['ch1', 'ch4'], pic: 'm3', url: '', note: '', eventId: null, posted: true },
-  { id: uid(), date: d(-5), title: 'Thông báo nội bộ', channelIds: ['ch1'], pic: 'm2', url: '', note: '', eventId: null, posted: true },
+  { id: uid(), date: '2026-06-10', title: 'meo meo', channelIds: [], pic: 'm1', url: '', note: '', eventId: null, posted: true },
+  { id: uid(), date: '2026-06-11', title: 'Quick check-ins + Join Claude', channelIds: ['ch1'], pic: 'm1', url: '', note: '', eventId: 'tg6', posted: true },
+  { id: uid(), date: '2026-06-12', title: 'Đăng kí nhận tk Claude', channelIds: ['ch1'], pic: 'm3', url: '', note: '', eventId: 'tg6', posted: true },
+  { id: uid(), date: '2026-06-15', title: 'Mở đăng kí', channelIds: ['ch1'], pic: 'm1', url: '', note: '', eventId: 'tg2', posted: true },
+  { id: uid(), date: '2026-06-17', title: 'Thông báo tặng áo', channelIds: ['ch1'], pic: 'm3', url: '', note: '', eventId: 'tg6', posted: true },
+  { id: uid(), date: '2026-06-23', title: 'mail xác nhận đăng kí tham gia', channelIds: ['ch1'], pic: 'm2', url: '', note: '', eventId: 'tg2', posted: false },
+  { id: uid(), date: '2026-06-24', title: 'Mở đăng ký giải cầu lông', channelIds: ['ch1'], pic: 'm2', url: '', note: '', eventId: 'tg1', posted: false },
+  { id: uid(), date: '2026-06-26', title: 'Cảm ơn tham gia + xin feedback', channelIds: ['ch1'], pic: 'm1', url: '', note: '', eventId: 'tg2', posted: false },
+];
+
+// Ngày lễ / ngày quan trọng VN + thế giới 2026 (note sẵn trên comm calendar)
+const SEED_HOLIDAYS = [
+  { date: '2026-01-01', name: 'Tết Dương lịch', icon: '🎉' },
+  { date: '2026-02-14', name: 'Valentine', icon: '❤️' },
+  { date: '2026-02-17', name: 'Tết Nguyên Đán (Mùng 1)', icon: '🧧' },
+  { date: '2026-03-08', name: 'Quốc tế Phụ nữ', icon: '🌷' },
+  { date: '2026-03-20', name: 'Quốc tế Hạnh phúc', icon: '😊' },
+  { date: '2026-04-22', name: 'Ngày Trái Đất', icon: '🌍' },
+  { date: '2026-04-26', name: 'Giỗ Tổ Hùng Vương', icon: '🏛️' },
+  { date: '2026-04-30', name: 'Giải phóng miền Nam', icon: '🇻🇳' },
+  { date: '2026-05-01', name: 'Quốc tế Lao động', icon: '🛠️' },
+  { date: '2026-05-19', name: 'Sinh nhật Bác', icon: '🎂' },
+  { date: '2026-06-01', name: 'Quốc tế Thiếu nhi', icon: '🎈' },
+  { date: '2026-06-05', name: 'Ngày Môi trường Thế giới', icon: '🌱' },
+  { date: '2026-09-02', name: 'Quốc khánh', icon: '🇻🇳' },
+  { date: '2026-09-25', name: 'Tết Trung Thu', icon: '🏮' },
+  { date: '2026-10-01', name: 'Tháng An toàn không gian mạng', icon: '🔒' },
+  { date: '2026-10-20', name: 'Phụ nữ Việt Nam', icon: '🌸' },
+  { date: '2026-10-31', name: 'Halloween', icon: '🎃' },
+  { date: '2026-11-20', name: 'Nhà giáo Việt Nam', icon: '🎓' },
+  { date: '2026-11-26', name: 'Lễ Tạ Ơn', icon: '🦃' },
+  { date: '2026-12-22', name: 'Ngày QĐND Việt Nam', icon: '🎖️' },
+  { date: '2026-12-24', name: 'Đêm Giáng Sinh', icon: '🎄' },
+  { date: '2026-12-25', name: 'Giáng Sinh', icon: '🎅' },
+  { date: '2026-12-31', name: 'Giao thừa Dương lịch', icon: '🎆' },
 ];
 
 const PRANK = { high: 0, medium: 1, low: 2 };
@@ -219,11 +224,14 @@ function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpe
             <div className="colcust-row">
               <input className="colcust-input" maxLength={2} value={member.icon || ''} placeholder={name.charAt(0)}
                      onChange={(e) => onCustomize(member.id, { icon: e.target.value })} aria-label="Chữ / icon" />
-              <div className="colcust-emojis">
-                {['🧚','🐝','🦋','🐱','🦊','🦄','🐼','🐧','🐰','🦁','🐯','🦉','🐸','🐢','🦔','🌸','🌻','🍀','🌙','⭐','🌈','🔥','🚀','🎨','💎','🍓','🍕','🎯','👑','✨'].map((e) => (
-                  <button key={e} className="colcust-emoji" onClick={() => onCustomize(member.id, { icon: e })}>{e}</button>
-                ))}
-              </div>
+              <button className={'colcust-none' + (!member.icon ? ' on' : '')} onClick={() => onCustomize(member.id, { icon: '' })} title="Không icon — dùng chữ cái đầu">
+                None <span className="colcust-none-prev">{name.charAt(0)}</span>
+              </button>
+            </div>
+            <div className="colcust-emojis">
+              {['😀','😎','🤓','🥳','🤩','😺','🧑‍💻','👩‍💻','🧑‍🎨','🦸','🦹','🧙','🥷','🧚','🧑‍🚀','🤖','🐱','🦊','🦄','🐼','🐧','🐰','🦁','🐯','🦉','🐸','🐢','🦔','🐶','🐨','🐵','🐙','🦖','🦅','🦋','🐝','🐞','🦦','🦥','🐺','🦝','🐳','🦈','🦩','🌸','🌻','🍀','🌙','⭐','🌈','🔥','🚀','🎨','💎','🍓','🍕','🎯','👑','✨','⚡','🍄','🎸','🎮','🌵'].map((e) => (
+                <button key={e} className={'colcust-emoji' + (member.icon === e ? ' on' : '')} onClick={() => onCustomize(member.id, { icon: e })}>{e}</button>
+              ))}
             </div>
             <div className="colcust-sec">Màu cột</div>
             <div className="colcust-colors">
@@ -461,6 +469,7 @@ function App() {
   const [commRef, setCommRef] = React.useState(todayISO());
   const [commView, setCommView] = React.useState('grid');
   const [editingPost, setEditingPost] = React.useState(null);
+  const [editingEvent, setEditingEvent] = React.useState(null);
   const [revealApp, setRevealApp] = React.useState(false);
   const [showIntro, setShowIntro] = React.useState(true);
   const [weekFor, setWeekFor] = React.useState(null);
@@ -602,7 +611,11 @@ function App() {
   const updatePost = (id, patch) => setPosts((prev) => prev.map((x) => x.id === id ? { ...x, ...patch } : x));
   const deletePost = (id) => { setPosts((prev) => prev.filter((x) => x.id !== id)); setEditingPost(null); };
   const createChannel = (name, color) => { const c = { id: uid(), name, color }; setChannels((prev) => [...prev, c]); return c; };
-  const createEventTag = (name, color) => { const ev = { id: uid(), name, color, date: (editingPost && editingPost.date) || todayISO() }; setTags((prev) => [...prev, ev]); return ev; };
+  const createEventTag = (name, color) => { const ev = { id: uid(), name, color, date: (editingPost && editingPost.date) || todayISO(), icon: '📅' }; setTags((prev) => [...prev, ev]); return ev; };
+  const openNewEvent = (date) => setEditingEvent({ id: uid(), name: '', color: '#8B5CF6', date: date || todayISO(), icon: DEFAULT_EVENT_ICON, startTime: '', endTime: '', isNew: true });
+  const openEditEvent = (ev) => setEditingEvent({ ...ev, isNew: false });
+  const saveEvent = (draft) => { const { isNew, ...clean } = draft; setTags((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? { ...x, ...clean } : x)); setEditingEvent(null); };
+  const deleteEventTag = (id) => { deleteTag(id); setEditingEvent(null); };
 
   const doDrop = (toOwner, toIndex) => {
     if (!drag) return;
@@ -641,10 +654,6 @@ function App() {
           <span className="brand-tag lg">EB·IC·EE</span>
         </div>
         <div className="toolbar">
-          <div className="sync-badge">
-            <div id="__sync_dot" className="sync-dot" />
-            <span id="__sync_lbl">Đang kết nối…</span>
-          </div>
           <div className="seg viewseg">
             {[['board', 'Board'], ['week', 'Tuần'], ['month', 'Tháng']].map(([k, l]) => (
               <button key={k} className={'seg-btn' + (view === k ? ' on' : '')} onClick={() => setView(k)}>{l}</button>
@@ -685,12 +694,12 @@ function App() {
           </div>
           <EventsSection events={events} tasks={tasks} members={members}
                          onToggle={toggle} onOpen={openEdit} onAddPrep={addPrep} onAddTask={openNewForEvent}
-                         onCreateEvent={() => setShowTags(true)} onEditEvent={() => setShowTags(true)}
+                         onCreateEvent={() => openNewEvent(todayISO())} onEditEvent={openEditEvent}
                          onUpdateEvent={updateTag} onSetPhase={setPhase} />
-          <CommCalendar posts={posts} channels={channels} members={members} events={events}
+          <CommCalendar posts={posts} channels={channels} members={members} events={events} holidays={SEED_HOLIDAYS}
                         refDate={commRef} setRefDate={setCommRef}
                         view={commView} setView={setCommView}
-                        onOpenPost={openEditPost} onNewPost={openNewPost} onTogglePosted={togglePosted} onOpenEvent={() => setShowTags(true)}
+                        onOpenPost={openEditPost} onNewPost={openNewPost} onNewEvent={openNewEvent} onTogglePosted={togglePosted} onOpenEvent={openEditEvent}
                         onUpdatePost={updatePost} onUpdateEvent={updateTag} />
         </main>
       ) : (
@@ -720,6 +729,8 @@ function App() {
 
       <PostEditor post={editingPost} members={members} channels={channels} events={events}
                   onCreateChannel={createChannel} onCreateEvent={createEventTag} onSave={savePost} onDelete={deletePost} onClose={() => setEditingPost(null)} />
+
+      <EventEditor event={editingEvent} onSave={saveEvent} onDelete={deleteEventTag} onClose={() => setEditingEvent(null)} />
 
       {weekFor && (
         <WeekPlanner member={memberOf(weekFor)} tasks={tasks} tags={tags} posts={posts} channels={channels} events={events}
