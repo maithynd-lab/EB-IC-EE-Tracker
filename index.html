@@ -557,14 +557,15 @@
     pointer-events:none;opacity:0;mix-blend-mode:screen;will-change:transform;
     transition:transform .14s ease-out, opacity .3s ease;
     background:radial-gradient(circle, rgba(255,255,255,.55) 0%, rgba(186,150,255,.32) 32%, rgba(186,150,255,0) 68%)}
-  .taskpit-fairies{position:absolute;right:6%;top:0;bottom:0;display:flex;align-items:center;gap:30px;z-index:2}
-  .pit-fairy{font-size:46px;line-height:1;display:block;cursor:grab;user-select:none;touch-action:none;
-    transition:transform .25s cubic-bezier(.3,1.3,.5,1), filter .25s;
-    filter:drop-shadow(0 0 9px var(--g)) drop-shadow(0 0 18px color-mix(in srgb,var(--g) 55%,transparent))}
-  .pit-fairy:hover{transform:translateY(-7px) scale(1.14);
-    filter:drop-shadow(0 0 14px var(--g)) drop-shadow(0 0 30px var(--g))}
-  .pit-fairy.grabbed{cursor:grabbing;z-index:5;transition:filter .25s;
-    filter:drop-shadow(0 0 16px var(--g)) drop-shadow(0 0 32px var(--g))}
+  .taskpit-fairies{position:absolute;inset:0;z-index:2;pointer-events:none}
+  .pit-fairy{position:absolute;left:0;top:0;display:grid;place-items:center;width:46px;height:46px;
+    pointer-events:auto;user-select:none;touch-action:none;will-change:transform}
+  .pit-aura{position:absolute;left:50%;top:50%;width:108px;height:108px;border-radius:50%;
+    transform:translate(-50%,-50%);pointer-events:none;mix-blend-mode:screen;transition:width .25s,height .25s,opacity .3s;
+    background:radial-gradient(circle, color-mix(in srgb,var(--g) 88%,#fff) 0%, color-mix(in srgb,var(--g) 60%,transparent) 32%, transparent 70%)}
+  .pit-glyph{font-size:46px;line-height:1;transition:transform .25s cubic-bezier(.3,1.3,.5,1)}
+  .pit-fairy:hover .pit-glyph{transform:translateY(-7px) scale(1.14)}
+  .pit-fairy:hover .pit-aura{width:140px;height:140px}
   .taskpit.free .taskpit-fairies{animation:fairiesUp .85s ease forwards}
   @keyframes fairiesUp{0%{transform:translateY(0)}35%{transform:translateY(10px)}100%{transform:translateY(-160px)}}
   .pit-deco{position:absolute;inset:0;z-index:1;pointer-events:none}
@@ -578,6 +579,20 @@
   .pit-star.s2{left:64%;top:62%;font-size:12px;animation-delay:.6s}
   .pit-star.s3{right:34%;top:16%;animation-delay:1.1s}
   @keyframes twinkle{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.25)}}
+
+  /* extra forest critters + plants */
+  .pit-bird{font-size:17px;top:13%;left:0;animation:birdfly 10s linear infinite}
+  @keyframes birdfly{0%{transform:translateX(-50px) translateY(0) rotate(4deg)}25%{transform:translateX(26vw) translateY(-9px) rotate(-3deg)}50%{transform:translateX(52vw) translateY(2px) rotate(4deg)}75%{transform:translateX(78vw) translateY(-7px) rotate(-3deg)}100%{transform:translateX(104vw) translateY(0) rotate(4deg)}}
+  .pit-bee{font-size:15px;left:50%;top:32%;animation:buzz 5s ease-in-out infinite}
+  @keyframes buzz{0%{transform:translate(0,0)}20%{transform:translate(26px,-14px)}40%{transform:translate(44px,8px)}60%{transform:translate(20px,18px)}80%{transform:translate(-12px,5px)}100%{transform:translate(0,0)}}
+  .pit-snail{font-size:17px;left:22%;bottom:5px;animation:crawl 18s linear infinite}
+  @keyframes crawl{0%{transform:translateX(0)}50%{transform:translateX(11vw)}100%{transform:translateX(0)}}
+  .pit-deer{font-size:21px;left:44%;bottom:4px;animation:deerbob 3.6s ease-in-out infinite}
+  @keyframes deerbob{0%,100%{transform:translateY(0)}45%{transform:translateY(-7px) rotate(-3deg)}}
+  .pit-plant{position:absolute;bottom:-3px;line-height:1;opacity:.92}
+  .pit-tree1{font-size:30px;left:2%}
+  .pit-tree2{font-size:26px;left:55%}
+  .pit-mushroom{font-size:15px;left:11%;bottom:3px;animation:deerbob 4s ease-in-out infinite}
 
   /* ── column customize popover ── */
   .colcust-btn{color:var(--muted)}
@@ -598,6 +613,7 @@
   /* ── channel icon chips on calendar ── */
   .cpost-chs{display:flex;gap:4px;flex-shrink:0;align-items:center}
   .cpost-ch{font-size:13px;line-height:1;font-style:normal;font-weight:800}
+  .cpost-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:1px}
 
   /* ── event chip on comm calendar ── */
   .cevent{display:flex;align-items:center;gap:4px;width:100%;border:0;border-radius:6px;padding:2px 6px;
