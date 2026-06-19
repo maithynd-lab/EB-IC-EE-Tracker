@@ -17,40 +17,37 @@ const LS = { tasks: 'ttb_tasks_v2', tags: 'ttb_tags_v3', sort: 'ttb_sort_v2', po
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function useLocal(key, initial) {
-  const [val, setValState] = React.useState(() => {
-    try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : initial; }
-    catch { return initial; }
-  });
-  const skipNextRef = React.useRef(false);
+  const [val, setVal] = React.useState(initial);
+  const latestVal = React.useRef(initial);
+  latestVal.current = val;
+
   React.useEffect(() => {
-    try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-  }, [key, val]);
-  React.useEffect(() => {
-    if (!window.__firebaseDB) return;
-    const { ref, onValue } = window.__firebaseDB;
-    const unsub = onValue(ref('ttb/' + key), (snap) => {
-      if (skipNextRef.current) { skipNextRef.current = false; return; }
+    const db = window.__db;
+    if (!db) {
+      // Firebase chua load — fallback localStorage
+      try { const r = localStorage.getItem(key); if (r) setVal(JSON.parse(r)); } catch {}
+      return;
+    }
+    const r = window.__fbRef(db, key);
+    const unsub = window.__fbOnValue(r, (snap) => {
       const data = snap.val();
-      if (data !== null && data !== undefined) {
-        setValState(data);
-        try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
-      }
+      if (data !== null && data !== undefined) setVal(data);
     });
-    return unsub;
+    return () => unsub();
   }, [key]);
-  const setVal = React.useCallback((updater) => {
-    setValState((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      if (window.__firebaseDB) {
-        const { ref, set } = window.__firebaseDB;
-        skipNextRef.current = true;
-        set(ref('ttb/' + key), next).catch(() => { skipNextRef.current = false; });
-      }
-      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
-      return next;
-    });
+
+  const update = React.useCallback((newVal) => {
+    const resolved = typeof newVal === 'function' ? newVal(latestVal.current) : newVal;
+    setVal(resolved);
+    const db = window.__db;
+    if (db) {
+      window.__fbSet(window.__fbRef(db, key), resolved);
+    } else {
+      try { localStorage.setItem(key, JSON.stringify(resolved)); } catch {}
+    }
   }, [key]);
-  return [val, setVal];
+
+  return [val, update];
 }
 
 const MEMBERS = [
@@ -680,7 +677,6 @@ function App() {
           <span className="brand-tag lg">EB·IC·EE</span>
         </div>
         <div className="toolbar">
-          <div className="sync-badge"><div id="__sync_dot" className="sync-dot" /><span id="__sync_lbl">Đang kết nối…</span></div>
           <div className="seg viewseg">
             {[['board', 'Board'], ['week', 'Tuần'], ['month', 'Tháng']].map(([k, l]) => (
               <button key={k} className={'seg-btn' + (view === k ? ' on' : '')} onClick={() => setView(k)}>{l}</button>
