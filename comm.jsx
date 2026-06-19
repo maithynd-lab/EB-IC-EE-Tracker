@@ -31,7 +31,7 @@ function ChannelPicker({ channels, value, onChange, onCreate }) {
         ))}
         <input className="tagpicker-input" value={q} placeholder={selected.length ? '' : 'Chọn hoặc tạo channel…'}
                onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-               onKeyDown={(e) => { if (e.key === 'Enter' && q.trim() && !exact) { e.preventDefault(); create(newColor); } if (e.key === 'Backspace' && !q && selected.length) remove(selected[selected.length - 1].id); }} />
+               onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && q.trim() && !exact) { e.preventDefault(); create(newColor); } if (e.key === 'Backspace' && !q && selected.length) remove(selected[selected.length - 1].id); }} />
       </div>
       {open && (
         <div className="tagpicker-menu">
@@ -90,7 +90,7 @@ function EventPicker({ events, value, onChange, onCreate }) {
         )}
         <input className="tagpicker-input" value={q} placeholder={selected ? '' : 'Chọn hoặc tạo event…'}
                onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-               onKeyDown={(e) => { if (e.key === 'Enter' && q.trim() && !exact) { e.preventDefault(); create(newColor); } }} />
+               onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && q.trim() && !exact) { e.preventDefault(); create(newColor); } }} />
       </div>
       {open && (
         <div className="tagpicker-menu">
@@ -200,11 +200,11 @@ function PostEditor({ post, members, channels, events, onCreateChannel, onCreate
 }
 
 // ── PostChip (in a day cell) ───────────────────────────────────────────────
-function PostChip({ post, channels, events, onOpen, onToggle }) {
-  const chs = (post.channelIds || []).map((id) => (channels || []).find((c) => c.id === id)).filter(Boolean);
+function PostChip({ post, channels, events, onOpen, onToggle, dragProps }) {
+  const chs = post.channelIds.map((id) => channels.find((c) => c.id === id)).filter(Boolean);
   const ev = post.eventId ? events.find((e) => e.id === post.eventId) : null;
   return (
-    <div className={'cpost' + (post.posted ? ' posted' : '')} onClick={() => onOpen(post)}
+    <div className={'cpost' + (post.posted ? ' posted' : '')} onClick={() => onOpen(post)} {...(dragProps || {})}
          style={ev ? { borderLeftColor: ev.color, borderLeftWidth: 3 } : undefined}>
       {ev && <span className="cpost-ev" style={tagStyle(ev.color)}>{ev.name}</span>}
       <div className="cpost-top">
@@ -230,7 +230,7 @@ function CommList({ posts, channels, members, events, onOpen, onToggle }) {
         <div key={date} className="comm-list-group">
           <div className="comm-list-date">{fmtFullDate(date)}</div>
           {groups[date].sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0)).map((p) => {
-            const chs = (p.channelIds || []).map((id) => (channels || []).find((c) => c.id === id)).filter(Boolean);
+            const chs = p.channelIds.map((id) => channels.find((c) => c.id === id)).filter(Boolean);
             const pic = members.find((m) => m.id === p.pic);
             const ev = p.eventId ? events.find((e) => e.id === p.eventId) : null;
             return (
@@ -250,8 +250,8 @@ function CommList({ posts, channels, members, events, onOpen, onToggle }) {
 }
 
 // ── CommCalendar ───────────────────────────────────────────────────────────
-function CommCalendar({ posts, channels, members, events, refMonth, onStep, onToday, view, setView, note, onNote, onOpenPost, onNewPost, onTogglePosted, onOpenEvent }) {
-  const d = parseISO(refMonth), y = d.getFullYear(), m = d.getMonth();
+function CommCalendar({ posts, channels, members, events, refDate, setRefDate, view, setView, onOpenPost, onNewPost, onTogglePosted, onOpenEvent, onUpdatePost, onUpdateEvent }) {
+  const d = parseISO(refDate), y = d.getFullYear(), m = d.getMonth();
   const first = new Date(y, m, 1), startDow = (first.getDay() + 6) % 7;
   const dim = new Date(y, m + 1, 0).getDate();
   const cells = [];
@@ -264,29 +264,84 @@ function CommCalendar({ posts, channels, members, events, refMonth, onStep, onTo
   events.forEach((e) => { if (e.date) (evByDate[e.date] = evByDate[e.date] || []).push(e); });
   const today = todayISO();
 
+  const wr = weekRange(refDate);
+  const wdays = []; for (let i = 0; i < 7; i++) wdays.push(addDaysISO(wr.start, i));
+
+  const [drag, setDrag] = React.useState(null); // { kind:'post'|'event', id }
+  const [dropISO, setDropISO] = React.useState(null);
+  const startDrag = (kind, id) => (e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; setDrag({ kind, id }); };
+  const endDrag = () => { setDrag(null); setDropISO(null); };
+  const dropProps = (iso) => ({
+    onDragOver: (e) => { if (drag) { e.preventDefault(); if (dropISO !== iso) setDropISO(iso); } },
+    onDragLeave: (e) => { if (e.currentTarget === e.target) setDropISO(null); },
+    onDrop: (e) => {
+      e.preventDefault();
+      if (drag) { if (drag.kind === 'post') onUpdatePost && onUpdatePost(drag.id, { date: iso }); else onUpdateEvent && onUpdateEvent(drag.id, { date: iso }); }
+      setDrag(null); setDropISO(null);
+    },
+  });
+
+  const step = (dir) => {
+    if (view === 'week') setRefDate(addDaysISO(refDate, dir * 7));
+    else setRefDate(toISO(new Date(y, m + dir, 1)));
+  };
+  const label = view === 'week' ? weekLabel(wr) : monthLabel(refDate);
+
+  const dayChips = (iso) => (
+    <>
+      {(evByDate[iso] || []).map((e) => (
+        <button key={e.id} className="cevent" style={{ background: e.color }} draggable
+                onDragStart={startDrag('event', e.id)} onDragEnd={endDrag}
+                onClick={(ev) => { ev.stopPropagation(); onOpenEvent && onOpenEvent(e); }} title={'Sự kiện: ' + e.name}>
+          <IconCalendar size={10} /> <span>{e.name}</span>
+        </button>
+      ))}
+      {(byDate[iso] || []).slice().sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0))
+        .map((p) => <PostChip key={p.id} post={p} channels={channels} events={events} onOpen={onOpenPost} onToggle={onTogglePosted}
+                              dragProps={{ draggable: true, onDragStart: startDrag('post', p.id), onDragEnd: endDrag }} />)}
+    </>
+  );
+
   return (
     <section className="comm">
       <div className="comm-head">
         <div>
           <h2>Comm Calendar</h2>
-          <p>Lịch bài đăng theo tháng · tick khi đã đăng</p>
+          <p>Lịch bài đăng · tick khi đã đăng</p>
         </div>
         <div className="comm-toolbar">
           <div className="period-nav">
-            <button className="iconbtn sm" onClick={() => onStep(-1)} aria-label="Tháng trước"><IconChevL size={16} /></button>
-            <span className="period-label sm">{monthLabel(refMonth)}</span>
-            <button className="iconbtn sm" onClick={() => onStep(1)} aria-label="Tháng sau"><IconChevR size={16} /></button>
-            <button className="btn ghost sm" onClick={onToday}>Hôm nay</button>
+            <button className="iconbtn sm" onClick={() => step(-1)} aria-label="Lùi"><IconChevL size={16} /></button>
+            <span className="period-label sm">{label}</span>
+            <button className="iconbtn sm" onClick={() => step(1)} aria-label="Tiến"><IconChevR size={16} /></button>
+            <button className="btn ghost sm" onClick={() => setRefDate(todayISO())}>Hôm nay</button>
           </div>
           <div className="seg compact comm-viewseg">
-            <button className={'seg-btn' + (view === 'grid' ? ' on' : '')} onClick={() => setView('grid')}><IconGrid size={14} /></button>
-            <button className={'seg-btn' + (view === 'list' ? ' on' : '')} onClick={() => setView('list')}><IconList size={14} /></button>
+            <button className={'seg-btn' + (view === 'week' ? ' on' : '')} onClick={() => setView('week')} title="Tuần"><IconColumns size={14} /></button>
+            <button className={'seg-btn' + (view === 'grid' ? ' on' : '')} onClick={() => setView('grid')} title="Tháng"><IconGrid size={14} /></button>
+            <button className={'seg-btn' + (view === 'list' ? ' on' : '')} onClick={() => setView('list')} title="Danh sách"><IconList size={14} /></button>
           </div>
         </div>
       </div>
 
       {view === 'list' ? (
         <CommList posts={posts} channels={channels} members={members} events={events} onOpen={onOpenPost} onToggle={onTogglePosted} />
+      ) : view === 'week' ? (
+        <div className="comm-grid comm-week">
+          {wdays.map((iso, i) => {
+            const dt = parseISO(iso);
+            return (
+              <div key={iso} className={'comm-wcol' + (iso === today ? ' today' : '') + (dropISO === iso ? ' dropping' : '')} onDoubleClick={() => onNewPost(iso)} {...dropProps(iso)}>
+                <div className="comm-wcol-h">
+                  <span className="comm-wcol-dow">{CDOW[i]}</span>
+                  <span className="comm-wcol-day">{dt.getDate()}</span>
+                  <button className="comm-add" onClick={() => onNewPost(iso)} aria-label="Thêm bài"><IconPlus size={13} /></button>
+                </div>
+                <div className="comm-wcol-body">{dayChips(iso)}</div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div className="comm-grid">
           <div className="comm-dow-row">{CDOW.map((w) => <span key={w} className="comm-dow">{w}</span>)}</div>
@@ -294,22 +349,13 @@ function CommCalendar({ posts, channels, members, events, refMonth, onStep, onTo
             {cells.map((dd, i) => {
               if (dd == null) return <div key={i} className="comm-cell muted" />;
               const iso = toISO(new Date(y, m, dd));
-              const list = (byDate[iso] || []).slice().sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0));
               return (
-                <div key={i} className={'comm-cell' + (iso === today ? ' today' : '')} onDoubleClick={() => onNewPost(iso)}>
+                <div key={i} className={'comm-cell' + (iso === today ? ' today' : '') + (dropISO === iso ? ' dropping' : '')} onDoubleClick={() => onNewPost(iso)} {...dropProps(iso)}>
                   <div className="comm-cell-h">
                     <span className="comm-day">{dd}</span>
                     <button className="comm-add" onClick={() => onNewPost(iso)} aria-label="Thêm bài"><IconPlus size={13} /></button>
                   </div>
-                  <div className="comm-cell-posts">
-                    {(evByDate[iso] || []).map((e) => (
-                      <button key={e.id} className="cevent" style={{ background: e.color }}
-                              onClick={(ev) => { ev.stopPropagation(); onOpenEvent && onOpenEvent(e); }} title={'Sự kiện: ' + e.name}>
-                        <IconCalendar size={10} /> <span>{e.name}</span>
-                      </button>
-                    ))}
-                    {list.map((p) => <PostChip key={p.id} post={p} channels={channels} events={events} onOpen={onOpenPost} onToggle={onTogglePosted} />)}
-                  </div>
+                  <div className="comm-cell-posts">{dayChips(iso)}</div>
                 </div>
               );
             })}

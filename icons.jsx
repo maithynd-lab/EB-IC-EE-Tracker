@@ -28,9 +28,10 @@ const IconLink    = (p) => <Ic {...p} d={<><path d="M9.5 14.5l5-5" /><path d="M8
 const IconUsers   = (p) => <Ic {...p} d={<><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M16 5.2a3.2 3.2 0 0 1 0 6" /><path d="M17 13.5a5.5 5.5 0 0 1 3.5 5.1" /></>} />;
 const IconList    = (p) => <Ic {...p} d={<><path d="M8 6h12M8 12h12M8 18h12" /><circle cx="4" cy="6" r="1.1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.1" fill="currentColor" stroke="none"/></>} />;
 const IconGrid    = (p) => <Ic {...p} d={<><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></>} />;
+const IconColumns = (p) => <Ic {...p} d={<><rect x="3.5" y="4" width="5" height="16" rx="1.4"/><rect x="9.5" y="4" width="5" height="16" rx="1.4"/><rect x="15.5" y="4" width="5" height="16" rx="1.4"/></>} />;
 
 Object.assign(window, {
   IconCheck, IconPlus, IconClose, IconTrash, IconCalendar,
   IconChevL, IconChevR, IconSort, IconFlag, IconTag, IconNote, IconDrag, IconPrint, IconClock, IconGear, IconChevD,
-  IconPin, IconLink, IconUsers, IconList, IconGrid,
+  IconPin, IconLink, IconUsers, IconList, IconGrid, IconColumns,
 });

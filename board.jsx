@@ -17,39 +17,13 @@ const LS = { tasks: 'ttb_tasks_v2', tags: 'ttb_tags_v2', sort: 'ttb_sort_v2', po
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function useLocal(key, initial) {
-  const [val, setValState] = React.useState(() => {
+  const [val, setVal] = React.useState(() => {
     try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : initial; }
     catch { return initial; }
   });
-  const skipNextRef = React.useRef(false);
   React.useEffect(() => {
     try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
   }, [key, val]);
-  React.useEffect(() => {
-    if (!window.__firebaseDB) return;
-    const { ref, onValue } = window.__firebaseDB;
-    const unsub = onValue(ref('ttb/' + key), (snap) => {
-      if (skipNextRef.current) { skipNextRef.current = false; return; }
-      const data = snap.val();
-      if (data !== null && data !== undefined) {
-        setValState(data);
-        try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
-      }
-    });
-    return unsub;
-  }, [key]);
-  const setVal = React.useCallback((updater) => {
-    setValState((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      if (window.__firebaseDB) {
-        const { ref, set } = window.__firebaseDB;
-        skipNextRef.current = true;
-        set(ref('ttb/' + key), next).catch(() => { skipNextRef.current = false; });
-      }
-      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, [key]);
   return [val, setVal];
 }
 
@@ -166,7 +140,7 @@ function TaskCard({ task, tags, accent, onToggle, onOpen, onDragStart, onDragEnd
 }
 
 // ── Column ──────────────────────────────────────────────────────────────
-function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpen, onQuickAdd, onAddClick, onCustomize,
+function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpen, onQuickAdd, onAddClick, onCustomize, onOpenWeek,
                   drag, setDrag, dropInfo, setDropInfo, onDrop }) {
   const [quick, setQuick] = React.useState('');
   const [cust, setCust] = React.useState(false);
@@ -210,6 +184,7 @@ function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpe
           <span className="col-name">{name}</span>
           <span className="col-count">{active.length} đang làm · {done.length} xong</span>
         </div>
+        <button className="iconbtn sm colcust-btn" onClick={() => onOpenWeek(member.id)} aria-label="Xem bảng tuần" title="Xem bảng tuần"><IconColumns size={15} /></button>
         <button className="iconbtn sm colcust-btn" onClick={() => setCust((o) => !o)} aria-label="Tùy chỉnh avatar & màu"><IconGear size={15} /></button>
         <button className="iconbtn add" onClick={() => onAddClick(member.id)} aria-label="Thêm task"><IconPlus size={18} /></button>
         {cust && (
@@ -264,7 +239,7 @@ function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpe
       <div className="quickadd">
         <input value={quick} placeholder="+ Thêm task nhanh…"
                onChange={(e) => setQuick(e.target.value)}
-               onKeyDown={(e) => { if (e.key === 'Enter' && quick.trim()) { onQuickAdd(member.id, quick.trim()); setQuick(''); } }} />
+               onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && quick.trim()) { onQuickAdd(member.id, quick.trim()); setQuick(''); } }} />
       </div>
     </section>
   );
@@ -462,6 +437,8 @@ function App() {
   const [editingPost, setEditingPost] = React.useState(null);
   const [revealApp, setRevealApp] = React.useState(false);
   const [showIntro, setShowIntro] = React.useState(true);
+  const [weekFor, setWeekFor] = React.useState(null);
+  const [plannerRef, setPlannerRef] = React.useState(todayISO());
 
   const range = view === 'week' ? weekRange(ref) : view === 'month' ? monthRange(ref) : null;
 
@@ -568,6 +545,7 @@ function App() {
     setEditing(null);
   };
   const deleteTask = (id) => { setTasks((prev) => prev.filter((x) => x.id !== id)); setEditing(null); };
+  const updateTask = (id, patch) => setTasks((prev) => prev.map((x) => x.id === id ? { ...x, ...patch } : x));
 
   const createTag = (name, color) => {
     const tag = { id: uid(), name, color, date: null };
@@ -595,6 +573,7 @@ function App() {
   const openNewPost = (date) => setEditingPost({ id: uid(), date, title: '', channelIds: [], pic: members[0].id, url: '', note: '', eventId: null, posted: false, isNew: true });
   const openEditPost = (p) => setEditingPost({ ...p, isNew: false });
   const savePost = (draft) => { const { isNew, ...clean } = draft; setPosts((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? clean : x)); setEditingPost(null); };
+  const updatePost = (id, patch) => setPosts((prev) => prev.map((x) => x.id === id ? { ...x, ...patch } : x));
   const deletePost = (id) => { setPosts((prev) => prev.filter((x) => x.id !== id)); setEditingPost(null); };
   const createChannel = (name, color) => { const c = { id: uid(), name, color }; setChannels((prev) => [...prev, c]); return c; };
   const createEventTag = (name, color) => { const ev = { id: uid(), name, color, date: (editingPost && editingPost.date) || todayISO() }; setTags((prev) => [...prev, ev]); return ev; };
@@ -636,10 +615,6 @@ function App() {
           <span className="brand-tag lg">EB·IC·EE</span>
         </div>
         <div className="toolbar">
-          <div className="sync-badge">
-            <div id="__sync_dot" className="sync-dot" />
-            <span id="__sync_lbl">Đang kết nối…</span>
-          </div>
           <div className="seg viewseg">
             {[['board', 'Board'], ['week', 'Tuần'], ['month', 'Tháng']].map(([k, l]) => (
               <button key={k} className={'seg-btn' + (view === k ? ' on' : '')} onClick={() => setView(k)}>{l}</button>
@@ -674,6 +649,7 @@ function App() {
               <Column key={m.id} member={m} name={m.name} color={m.color}
                       tasks={tasks} tags={tags} sort={sort} scope={taskScope}
                       onToggle={toggle} onOpen={openEdit} onQuickAdd={quickAdd} onAddClick={openNew} onCustomize={customizeMember}
+                      onOpenWeek={(id) => { setPlannerRef(todayISO()); setWeekFor(id); }}
                       drag={drag} setDrag={setDrag} dropInfo={dropInfo} setDropInfo={setDropInfo} onDrop={doDrop} />
             ))}
           </div>
@@ -682,13 +658,10 @@ function App() {
                          onCreateEvent={() => setShowTags(true)} onEditEvent={() => setShowTags(true)}
                          onUpdateEvent={updateTag} onSetPhase={setPhase} />
           <CommCalendar posts={posts} channels={channels} members={members} events={events}
-                        refMonth={commRef}
-                        onStep={(dir) => { const dt = parseISO(commRef); setCommRef(toISO(new Date(dt.getFullYear(), dt.getMonth() + dir, 1))); }}
-                        onToday={() => setCommRef(todayISO())}
+                        refDate={commRef} setRefDate={setCommRef}
                         view={commView} setView={setCommView}
-                        note={commNotes[commRef.slice(0, 7)] || ''}
-                        onNote={(text) => setCommNotes((prev) => ({ ...prev, [commRef.slice(0, 7)]: text }))}
-                        onOpenPost={openEditPost} onNewPost={openNewPost} onTogglePosted={togglePosted} onOpenEvent={() => setShowTags(true)} />
+                        onOpenPost={openEditPost} onNewPost={openNewPost} onTogglePosted={togglePosted} onOpenEvent={() => setShowTags(true)}
+                        onUpdatePost={updatePost} onUpdateEvent={updateTag} />
         </main>
       ) : (
         <main className="report-main">
@@ -717,6 +690,15 @@ function App() {
 
       <PostEditor post={editingPost} members={members} channels={channels} events={events}
                   onCreateChannel={createChannel} onCreateEvent={createEventTag} onSave={savePost} onDelete={deletePost} onClose={() => setEditingPost(null)} />
+
+      {weekFor && (
+        <WeekPlanner member={memberOf(weekFor)} tasks={tasks} tags={tags} posts={posts} channels={channels} events={events}
+                     refDate={plannerRef}
+                     onStep={(dir) => setPlannerRef(addDaysISO(plannerRef, dir * 7))}
+                     onToday={() => setPlannerRef(todayISO())}
+                     onUpdateTask={updateTask} onToggleTask={toggle} onOpenTask={openEdit}
+                     onOpenPost={openEditPost} onTogglePosted={togglePosted} onClose={() => setWeekFor(null)} />
+      )}
 
       <TweaksPanel title="Tweaks">
         <TweakSection label="Thành viên" />

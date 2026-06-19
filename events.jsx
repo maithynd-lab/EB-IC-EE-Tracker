@@ -40,12 +40,77 @@ function PhaseAdd({ members, defOwner, onAdd }) {
       </div>
       <input className="phase-add-input" value={text} placeholder="+ Thêm việc…"
              onChange={(e) => setText(e.target.value)}
-             onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { onAdd(owner, text.trim()); setText(''); } }} />
+             onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && text.trim()) { e.preventDefault(); onAdd(owner, text.trim()); setText(''); } }} />
     </div>
   );
 }
 
 const PHASES = [['pre', 'Pre-Event'], ['during', 'During-Event'], ['post', 'Post-Event']];
+
+// ── EventNotes: wide 2-column note board (open ↔ Chốt đơn), drag to resolve ──
+function EventNotes({ event, onUpdateEvent }) {
+  const notes = event.notes || [];
+  const [text, setText] = React.useState('');
+  const [dragId, setDragId] = React.useState(null);
+  const [dropSide, setDropSide] = React.useState(null);
+  const save = (next) => onUpdateEvent(event.id, { notes: next });
+  const add = () => { const v = text.trim(); if (!v) return; save([...notes, { id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: v, done: false }]); setText(''); };
+  const patch = (id, p) => save(notes.map((n) => (n.id === id ? { ...n, ...p } : n)));
+  const del = (id) => save(notes.filter((n) => n.id !== id));
+  const open = notes.filter((n) => !n.done);
+  const solved = notes.filter((n) => n.done);
+
+  const Note = (n) => (
+    <div key={n.id} className={'ev-note' + (n.done ? ' done' : '') + (dragId === n.id ? ' dragging' : '')}>
+      <div className="ev-note-main">
+        <span className="ev-note-grip" draggable title="Kéo để chuyển"
+              onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragId(n.id); }}
+              onDragEnd={() => { setDragId(null); setDropSide(null); }}>{'\u2807'}</span>
+        <input className="ev-note-text" value={n.text} placeholder="Nội dung note…"
+               onChange={(e) => patch(n.id, { text: e.target.value })} />
+        {!n.done
+          ? <button className="ev-note-btn ok" title="Chốt đơn" onClick={() => patch(n.id, { done: true })}><IconCheck size={13} sw={2.8} /></button>
+          : <button className="ev-note-btn" title="Mở lại" onClick={() => patch(n.id, { done: false })}>{'\u21A9'}</button>}
+        <button className="ev-note-btn" title="Xoá" onClick={() => del(n.id)}><IconClose size={12} sw={2.4} /></button>
+      </div>
+      {n.done && (
+        <input className="ev-note-sol" value={n.solution || ''} placeholder="Giải pháp / next step…"
+               onChange={(e) => patch(n.id, { solution: e.target.value })} />
+      )}
+    </div>
+  );
+  const colProps = (side) => ({
+    onDragOver: (e) => { if (dragId) { e.preventDefault(); if (dropSide !== side) setDropSide(side); } },
+    onDragLeave: (e) => { if (e.currentTarget === e.target) setDropSide(null); },
+    onDrop: (e) => { e.preventDefault(); if (dragId) patch(dragId, { done: side === 'done' }); setDragId(null); setDropSide(null); },
+  });
+
+  return (
+    <div className="ev-notes-wrap">
+      <div className="ev-notes-title"><IconNote size={13} /> Ghi chú nhanh</div>
+      <div className="ev-notes">
+        <div className={'ev-notes-col' + (dropSide === 'open' ? ' dropping' : '')} {...colProps('open')}>
+          <div className="ev-notes-h"><span className="ev-notes-dot ping" /> Cần xử lý <span className="ev-notes-count">{open.length}</span></div>
+          <div className="ev-notes-list">
+            {open.length === 0 && <div className="ev-notes-empty">Chưa có note nào · gõ bên dưới để ping lên</div>}
+            {open.map(Note)}
+          </div>
+          <div className="ev-note-add">
+            <input value={text} placeholder="+ Ghi note mới…" onChange={(e) => setText(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); add(); } }} />
+          </div>
+        </div>
+        <div className={'ev-notes-col solved' + (dropSide === 'done' ? ' dropping' : '')} {...colProps('done')}>
+          <div className="ev-notes-h"><span className="ev-notes-dot solved" /> Chốt đơn <span className="ev-notes-count">{solved.length}</span></div>
+          <div className="ev-notes-list">
+            {solved.length === 0 && <div className="ev-notes-empty">Kéo note đã xử lý xong qua đây</div>}
+            {solved.map(Note)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddTask, onEditEvent, onUpdateEvent, onSetPhase, past }) {
   const prep = tasks.filter((t) => t.tagIds.includes(event.id));
@@ -56,6 +121,13 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
   const defOwner = (owners[0] || members[0]).id;
   const [dragId, setDragId] = React.useState(null);
   const [dropPhase, setDropPhase] = React.useState(null);
+  const [dateOpen, setDateOpen] = React.useState(false);
+  const dateRef = React.useRef(null);
+  React.useEffect(() => {
+    const onDoc = (e) => { if (dateRef.current && !dateRef.current.contains(e.target)) setDateOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
 
   return (
     <section className={'event-block' + (past ? ' past' : '')} style={{ '--accent': event.color }}>
@@ -63,8 +135,17 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
         <div className="event-head-l">
           <span className="event-dot" />
           <div className="event-titles">
-            <div className="event-name">{event.name}</div>
-            <div className="event-meta"><IconCalendar size={13} /> {fmtFullDate(event.date)} · {countdownLabel(event.date)}</div>
+            <input className="event-name-input" value={event.name} placeholder="Tên sự kiện"
+                   onChange={(e) => onUpdateEvent(event.id, { name: e.target.value })} />
+            <div className="event-meta event-date-wrap" ref={dateRef}>
+              <button className="event-date-btn" onClick={() => setDateOpen((o) => !o)}>
+                <IconCalendar size={13} /> {fmtFullDate(event.date)} · {countdownLabel(event.date)}
+              </button>
+              {dateOpen && (
+                <Calendar value={event.date} onPick={(iso) => { onUpdateEvent(event.id, { date: iso }); setDateOpen(false); }}
+                          onClear={() => setDateOpen(false)} />
+              )}
+            </div>
           </div>
         </div>
         <div className="event-head-r">
@@ -101,6 +182,7 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
         <span className="event-progress-lbl">{done.length}/{total} việc · {pct}%</span>
       </div>
 
+
       <div className="phases">
         {PHASES.map(([ph, label]) => {
           const list = prep.filter((t) => (t.phase || 'pre') === ph);
@@ -134,6 +216,8 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
           );
         })}
       </div>
+
+      <EventNotes event={event} onUpdateEvent={onUpdateEvent} />
     </section>
   );
 }
@@ -257,7 +341,7 @@ function TagManager({ open, tags, tasks, onUpdate, onDelete, onAdd, onClose }) {
             <div className="tagm-add-row">
               <span className="tag" style={tagStyle(color)}>{name.trim() || 'tag mới'}</span>
               <input className="tagm-name flat" value={name} placeholder="Tên tag mới…"
-                     onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
+                     onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) add(); }} />
               <button className="btn primary sm" onClick={add} disabled={!name.trim()}>Thêm</button>
             </div>
           </div>
