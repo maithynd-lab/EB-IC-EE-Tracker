@@ -1,9 +1,30 @@
 // editor.jsx — shared constants, TagPicker, TaskEditor modal. Exports to window.
 
-// Notion-ish curated tag palette (single source for swatches)
+// Curated tag palette — wide spectrum, multiple shades per hue (single source for swatches)
 const TAG_PALETTE = [
-  '#6B7280', '#EF4444', '#F97316', '#F59E0B', '#84CC16',
-  '#10B981', '#14B8A6', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#A16207',
+  // neutrals
+  '#94A3B8', '#6B7280', '#57534E', '#44403C',
+  // red / rose
+  '#FB7185', '#F43F5E', '#EF4444', '#B91C1C',
+  // orange / amber
+  '#FDBA74', '#FB923C', '#F97316', '#EA580C',
+  '#FBBF24', '#F59E0B', '#D97706', '#A16207',
+  // yellow / lime
+  '#FACC15', '#EAB308', '#A3E635', '#84CC16',
+  // green
+  '#4ADE80', '#22C55E', '#16A34A', '#15803D',
+  // teal / emerald
+  '#34D399', '#10B981', '#2DD4BF', '#14B8A6',
+  // cyan / sky
+  '#22D3EE', '#06B6D4', '#38BDF8', '#0EA5E9',
+  // blue
+  '#60A5FA', '#3B82F6', '#2563EB', '#1D4ED8',
+  // indigo / violet
+  '#818CF8', '#6366F1', '#A78BFA', '#8B5CF6',
+  // purple / fuchsia
+  '#C084FC', '#A855F7', '#E879F9', '#D946EF',
+  // pink / brown
+  '#F472B6', '#EC4899', '#A8A29E', '#78716C',
 ];
 function tagStyle(color) {
   return {

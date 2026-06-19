@@ -200,8 +200,8 @@
   .tagpicker-create-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
   .muted-lbl{font-size:12px;color:var(--muted);font-weight:600}
   .tagpicker-empty{padding:9px 8px;font-size:12.5px;color:var(--muted);font-weight:500}
-  .swatches{display:flex;flex-wrap:wrap;gap:7px}
-  .swatch{width:24px;height:24px;border-radius:8px;border:2px solid #fff;cursor:pointer;padding:0;
+  .swatches{display:grid;grid-template-columns:repeat(8,1fr);gap:7px;max-height:128px;overflow-y:auto;padding:2px}
+  .swatch{width:24px;height:24px;border-radius:8px;border:2px solid #fff;cursor:pointer;padding:0;justify-self:center;
     box-shadow:0 0 0 1px var(--line);transition:transform .12s}
   .swatch:hover{transform:scale(1.12)}
   .swatch.on{box-shadow:0 0 0 2px var(--ink)}
@@ -488,7 +488,7 @@
   .ev-ed-top{display:flex;align-items:center;gap:12px;margin-bottom:4px}
   .ev-ed-preview{width:56px;height:56px;flex-shrink:0;border-radius:14px;border:1px solid;display:grid;place-items:center}
   .ev-ed-preview-glyph{font-size:30px;line-height:1}
-  .ev-ed-colors{display:flex;flex-wrap:wrap;gap:7px;align-items:center;min-height:34px}
+  .ev-ed-colors{display:grid;grid-template-columns:repeat(8,1fr);gap:7px;align-items:center;max-height:120px;overflow-y:auto;padding:2px}
   .ev-ed-icons{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;max-height:176px;overflow-y:auto;
     padding:8px;border:1px solid var(--line);border-radius:12px;background:#FBFBFA}
   .ev-ed-time{display:flex;align-items:center;gap:8px}
@@ -800,7 +800,7 @@
   .colcust-emoji{border:0;background:transparent;border-radius:7px;font-size:17px;line-height:1;padding:3px 0;cursor:pointer;transition:.12s}
   .colcust-emoji:hover{background:rgba(20,22,30,.07);transform:scale(1.12)}
   .colcust-emoji.on{background:color-mix(in srgb,var(--accent) 18%,#fff);box-shadow:inset 0 0 0 1.5px var(--accent)}
-  .colcust-colors{display:flex;flex-wrap:wrap;gap:6px}
+  .colcust-colors{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;max-height:104px;overflow-y:auto;padding:2px}
 
   /* ── channel icon chips on calendar ── */
   .cpost-chs{display:flex;gap:4px;flex-shrink:0;align-items:center}
