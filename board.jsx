@@ -371,7 +371,7 @@ function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpe
         <span className="avatar" style={{ background: color }}>{member.icon || name.charAt(0)}</span>
         <div className="col-meta">
           <span className="col-name">{name}</span>
-          <span className="col-count">{active.length} đang làm · {done.length} xong</span>
+          <span className="col-count">{active.length} đang làm · {doneAll.length} xong</span>
         </div>
         <button className="iconbtn sm colcust-btn" onClick={() => onOpenWeek(member.id)} aria-label="Xem bảng tuần" title="Xem bảng tuần"><IconColumns size={15} /></button>
         <button className="iconbtn sm colcust-btn" onClick={() => setCust((o) => !o)} aria-label="Tùy chỉnh avatar & màu"><IconGear size={15} /></button>
