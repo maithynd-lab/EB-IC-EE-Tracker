@@ -160,7 +160,7 @@ function PostEditor({ post, members, channels, events, onCreateChannel, onCreate
 
           <div className="field">
             <div className="label"><IconTag size={14} /> Channel</div>
-            <ChannelPicker channels={channels} value={draft.channelIds} onChange={(v) => set({ channelIds: v })} onCreate={onCreateChannel} />
+            <ChannelPicker channels={channels} value={draft.channelIds || []} onChange={(v) => set({ channelIds: v })} onCreate={onCreateChannel} />
           </div>
 
           <div className="field-row">

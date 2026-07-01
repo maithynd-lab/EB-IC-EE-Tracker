@@ -273,8 +273,59 @@ function TaskCard({ task, tags, accent, onToggle, onOpen, onDragStart, onDragEnd
   );
 }
 
+// ── DoneListModal (xem tất cả task đã xong của 1 member) ────────────────
+function DoneListModal({ member, tasks, tags, onToggle, onOpen, onClose }) {
+  if (!member) return null;
+  const mine = tasks.filter((t) => t.owner === member.id && t.done)
+    .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
+
+  const today = todayISO();
+  const wr = weekRange(today);
+  const mr = monthRange(today);
+  const pmRef = (() => { const d = parseISO(today); return toISO(new Date(d.getFullYear(), d.getMonth() - 1, 1)); })();
+  const pmr = monthRange(pmRef);
+
+  const buckets = [
+    { key: 'today', label: 'Hôm nay',      match: (t) => t.completedAt === today },
+    { key: 'week',  label: 'Tuần này',     match: (t) => t.completedAt !== today && inRange(t.completedAt, wr.start, wr.end) },
+    { key: 'month', label: 'Tháng này',    match: (t) => !inRange(t.completedAt, wr.start, wr.end) && inRange(t.completedAt, mr.start, mr.end) },
+    { key: 'prev',  label: 'Tháng trước',  match: (t) => inRange(t.completedAt, pmr.start, pmr.end) },
+    { key: 'older', label: 'Cũ hơn',       match: (t) => !!t.completedAt && t.completedAt < pmr.start },
+    { key: 'nodate',label: 'Không rõ ngày',match: (t) => !t.completedAt },
+  ];
+  const groups = buckets.map((b) => ({ ...b, items: mine.filter(b.match) })).filter((g) => g.items.length > 0);
+
+  return (
+    <div className="scrim" onMouseDown={onClose}>
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()}
+           style={{ '--accent': member.color, width: 'min(560px, 100%)' }}>
+        <div className="modal-head">
+          <span className="modal-owner">
+            <span className="avatar" style={{ background: member.color }}>{member.icon || member.name.charAt(0)}</span>
+            Đã xong · {member.name} <span style={{ color: 'var(--muted)', fontWeight: 500, marginLeft: 4 }}>({mine.length})</span>
+          </span>
+          <button className="iconbtn" onClick={onClose} aria-label="Đóng"><IconClose /></button>
+        </div>
+        <div className="modal-body" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 160px)', gap: 18 }}>
+          {groups.length === 0 && <div className="col-empty">Chưa có task nào đã xong.</div>}
+          {groups.map((g) => (
+            <div key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="done-sep"><span>{g.label} · {g.items.length}</span></div>
+              {g.items.map((t) => (
+                <TaskCard key={t.id} task={t} tags={tags} accent={member.color}
+                          onToggle={onToggle} onOpen={onOpen}
+                          onDragStart={() => {}} onDragEnd={() => {}} />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Column ──────────────────────────────────────────────────────────────
-function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpen, onQuickAdd, onAddClick, onCustomize, onOpenWeek,
+function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpen, onQuickAdd, onAddClick, onCustomize, onOpenWeek, onShowAllDone,
                   drag, setDrag, dropInfo, setDropInfo, onDrop }) {
   const [quick, setQuick] = React.useState('');
   const [cust, setCust] = React.useState(false);
@@ -290,7 +341,11 @@ function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpe
   const mine = tasks.filter((t) => t.owner === member.id && inScope(t, scope));
   const cmp = sortComparator(sort);
   const active = mine.filter((t) => !t.done).sort(cmp);
-  const done = mine.filter((t) => t.done).sort(cmp);
+  const doneAll = mine.filter((t) => t.done)
+    .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
+  const DONE_PREVIEW = 3;
+  const doneShown = doneAll.slice(0, DONE_PREVIEW);
+  const doneHidden = doneAll.length - doneShown.length;
 
   const computeIndex = (clientY) => {
     const cards = [...listRef.current.querySelectorAll('.card:not(.done):not(.dragging)')];
@@ -362,15 +417,24 @@ function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpe
           <div className="col-empty">Chưa có task nào đang làm</div>
         )}
 
-        {done.length > 0 && (
-          <div className="done-sep"><span>Đã xong · {done.length}</span></div>
+        {doneAll.length > 0 && (
+          <div className="done-sep"><span>Đã xong · {doneAll.length}</span></div>
         )}
-        {done.map((t) => (
+        {doneShown.map((t) => (
           <TaskCard key={t.id} task={t} tags={tags} accent={color} onToggle={onToggle} onOpen={onOpen}
                     dragging={drag === t.id}
                     onDragStart={(e, id) => { e.dataTransfer.effectAllowed = 'move'; setDrag(id); }}
                     onDragEnd={() => { setDrag(null); setDropInfo(null); }} />
         ))}
+        {doneHidden > 0 && (
+          <button className="done-more-btn"
+                  onClick={() => onShowAllDone(member.id)}
+                  style={{ border: 0, background: 'transparent', color: 'var(--muted)',
+                           font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                           padding: '8px 4px 2px', textAlign: 'left', letterSpacing: '.01em' }}>
+            + Xem tất cả ({doneAll.length})
+          </button>
+        )}
       </div>
 
       <div className="quickadd">
@@ -578,6 +642,7 @@ function App() {
   const [showIntro, setShowIntro] = React.useState(true);
   const [weekFor, setWeekFor] = React.useState(null);
   const [plannerRef, setPlannerRef] = React.useState(todayISO());
+  const [doneModalFor, setDoneModalFor] = React.useState(null);
 
   const range = view === 'week' ? weekRange(ref) : view === 'month' ? monthRange(ref) : null;
 
@@ -713,7 +778,7 @@ function App() {
     if (np) { const x = ev && ev.clientX != null ? ev.clientX : window.innerWidth / 2; const y = ev && ev.clientY != null ? ev.clientY : window.innerHeight / 2; if (window.celebrateTask) window.celebrateTask(x, y); }
   };
   const openNewPost = (date) => setEditingPost({ id: uid(), date, title: '', channelIds: [], pic: members[0].id, url: '', note: '', eventId: null, posted: false, isNew: true });
-  const openEditPost = (p) => setEditingPost({ ...p, isNew: false });
+  const openEditPost = (p) => setEditingPost({ channelIds: [], url: '', note: '', ...p, isNew: false });
   const savePost = (draft) => { const { isNew, ...clean } = draft; setPosts((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? clean : x)); setEditingPost(null); };
   const updatePost = (id, patch) => setPosts((prev) => prev.map((x) => x.id === id ? { ...x, ...patch } : x));
   const deletePost = (id) => { setPosts((prev) => prev.filter((x) => x.id !== id)); setEditingPost(null); };
@@ -796,6 +861,7 @@ function App() {
                       tasks={tasks} tags={tags} sort={sort} scope={taskScope}
                       onToggle={toggle} onOpen={openEdit} onQuickAdd={quickAdd} onAddClick={openNew} onCustomize={customizeMember}
                       onOpenWeek={(id) => { setPlannerRef(todayISO()); setWeekFor(id); }}
+                      onShowAllDone={(id) => setDoneModalFor(id)}
                       drag={drag} setDrag={setDrag} dropInfo={dropInfo} setDropInfo={setDropInfo} onDrop={doDrop} />
             ))}
           </div>
@@ -838,6 +904,11 @@ function App() {
                   onCreateChannel={createChannel} onCreateEvent={createEventTag} onSave={savePost} onDelete={deletePost} onClose={() => setEditingPost(null)} />
 
       <EventEditor event={editingEvent} onSave={saveEvent} onDelete={deleteEventTag} onClose={() => setEditingEvent(null)} />
+
+      <DoneListModal member={doneModalFor ? memberOf(doneModalFor) : null}
+                     tasks={tasks} tags={tags}
+                     onToggle={toggle} onOpen={openEdit}
+                     onClose={() => setDoneModalFor(null)} />
 
       {weekFor && (
         <WeekPlanner member={memberOf(weekFor)} tasks={tasks} tags={tags} posts={posts} channels={channels} events={events}
