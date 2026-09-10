@@ -174,16 +174,17 @@ function ProjectGantt({ range, tasks, tags, members, onOpen, onNewProject, onNew
   const [collapsed, setCollapsed] = React.useState({});
   const toggleRow = (id) => setCollapsed((c) => ({ ...c, [id]: !c[id] }));
 
-  // Mỗi tag = 1 project. `all` = toàn bộ task của project, `tasks` = task liên quan tháng đang xem.
+  // Mỗi tag = 1 project. `all` = toàn bộ task của project; `tasks` cũng vậy — mọi task của
+  // project đều liệt kê mỗi tháng (task quá hạn / chưa có deadline / đã xong đều không bị ẩn),
+  // chỉ có vị trí trên trục ngày là phụ thuộc deadline có rơi vào tháng đang xem hay không.
   const byTag = React.useMemo(() => tags.map((tg) => {
     const all = tasks.filter((t) => (t.tagIds || []).includes(tg.id));
-    const shown = all.filter((t) => {
-      const s = gTaskSpan(t);
-      if (s && !(s.to < range.start || s.from > range.end)) return true;
-      return t.done && t.completedAt && inRange(t.completedAt, range.start, range.end);
-    });
+    const shown = all;
     const marks = [];
-    shown.forEach((t) => { const s = gTaskSpan(t); if (s) { marks.push(s.from, s.to); } });
+    shown.forEach((t) => {
+      const s = gTaskSpan(t);
+      if (s && !(s.to < range.start || s.from > range.end)) marks.push(s.from, s.to);
+    });
     const evFrom = tg.date, evTo = tg.endDate || tg.date;
     if (evFrom && !(evTo < range.start || evFrom > range.end)) marks.push(evFrom, evTo);
     const span = marks.length ? { from: marks.reduce((a, b) => a < b ? a : b), to: marks.reduce((a, b) => a > b ? a : b), kind: 'bar' } : null;
@@ -356,11 +357,13 @@ function ProjectGantt({ range, tasks, tags, members, onOpen, onNewProject, onNew
                                   </button>
                                 );
                               }
-                              return (
-                                <span className={'gt-nodate' + (t.done ? ' done' : '')}>
-                                  {t.done ? 'Đã xong' + (t.deadline ? ' · ' + t.deadline : '') : 'không có deadline'}
-                                </span>
-                              );
+                              if (t.done) {
+                                return <span className="gt-nodate done">{'Đã xong' + (t.deadline ? ' · ' + t.deadline : '')}</span>;
+                              }
+                              if (t.deadline) {
+                                return <span className={'gt-nodate' + (overdue ? ' over' : '')}>{(overdue ? 'Quá hạn · ' : '') + t.deadline}</span>;
+                              }
+                              return <span className="gt-nodate">không có deadline</span>;
                             })()}
                             {days.indexOf(today) >= 0 && <span className="gt-today" style={{ left: ((days.indexOf(today) + 0.5) / N) * 100 + '%' }} />}
                           </div>
