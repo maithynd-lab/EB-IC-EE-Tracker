@@ -376,6 +376,7 @@
     border-radius:var(--r-md);overflow:hidden;box-shadow:var(--shadow)}
   .pcc-week{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line)}
   .pcc-day{background:#fff;min-height:64px;padding:6px;display:flex;flex-direction:column;gap:4px;transition:.12s}
+  .pcc-day.we{background:rgba(20,22,30,.03)}
   .pcc-day.today{background:rgba(124,58,237,.05)}
   .pcc-day.event{background:rgba(245,158,11,.08)}
   .pcc-day.dropping{background:color-mix(in srgb,var(--accent,#7C3AED) 10%,#fff);box-shadow:inset 0 0 0 2px var(--accent,#7C3AED)}
@@ -505,6 +506,23 @@
   .ev-ms-x{width:28px;height:28px;flex-shrink:0;border:0;background:transparent;color:var(--muted);cursor:pointer;
     border-radius:8px;display:grid;place-items:center}
   .ev-ms-x:hover{background:rgba(239,68,68,.12);color:#DC2626}
+  .kd-pop{width:280px;padding:12px}
+
+  /* ── bulk import (paste to add content) ── */
+  .pcc-import{display:flex;flex-direction:column;gap:8px}
+  .pcc-import-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+  .pcc-import-ta{width:100%;border:1px dashed var(--line);border-radius:9px;padding:8px 10px;font:inherit;
+    font-size:11.5px;font-weight:500;color:var(--ink);background:#FBFBFA;outline:none;resize:vertical}
+  .pcc-import-ta:focus{border-style:solid;border-color:var(--accent,#7C3AED);background:#fff}
+  .pcc-import-check{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--muted)}
+  .pcc-import-cols{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto}
+  .pcc-import-col{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:5px 7px}
+  .pcc-import-sample{flex:1;min-width:0;font-size:10.5px;color:var(--ink);font-weight:600;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .pcc-import-col select{flex-shrink:0;border:1px solid var(--line);border-radius:7px;padding:3px 5px;
+    font:inherit;font-size:10.5px;font-weight:700;background:#fff;color:var(--ink)}
+  .pcc-import-summary{font-size:11px;font-weight:600;color:var(--muted)}
+  .pcc-import-acts{display:flex;justify-content:flex-end;gap:8px}
 
   /* ── comm 'add' menu (post / event) ── */
   .comm-add-wrap{position:relative}
@@ -592,10 +610,12 @@
   .comm-grid{border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:var(--panel);box-shadow:var(--shadow)}
   .comm-dow-row{display:grid;grid-template-columns:repeat(7,1fr);background:#FAFAF9;border-bottom:1px solid var(--line)}
   .comm-dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:9px 0;text-transform:uppercase;letter-spacing:.04em}
-  .comm-cells{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(110px,auto)}
+  .comm-cells{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(160px,auto)}
   .comm-cell{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px;display:flex;flex-direction:column;gap:3px;min-width:0}
   .comm-cell:nth-child(7n){border-right:0}
   .comm-cell.muted{background:#FBFBFA}
+  .comm-cell.we{background:rgba(20,22,30,.03)}
+  .comm-cell.we.muted{background:#F5F5F4}
   .comm-cell.today{background:color-mix(in srgb,#3B82F6 6%,#fff)}
   .comm-cell-h{display:flex;align-items:center;justify-content:space-between}
   .comm-day{font-size:12.5px;font-weight:700;color:var(--ink);padding:2px 6px}

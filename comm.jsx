@@ -402,10 +402,11 @@ function CommCalendar({ posts, channels, members, events, tags, holidays, refDat
           <div className="comm-dow-row">{CDOW.map((w) => <span key={w} className="comm-dow">{w}</span>)}</div>
           <div className="comm-cells">
             {cells.map((dd, i) => {
-              if (dd == null) return <div key={i} className="comm-cell muted" />;
+              const we = i % 7 === 5 || i % 7 === 6;
+              if (dd == null) return <div key={i} className={'comm-cell muted' + (we ? ' we' : '')} />;
               const iso = toISO(new Date(y, m, dd));
               return (
-                <div key={i} className={'comm-cell' + (iso === today ? ' today' : '') + (dropISO === iso ? ' dropping' : '')} onDoubleClick={() => onNewPost(iso)} {...dropProps(iso)}>
+                <div key={i} className={'comm-cell' + (we ? ' we' : '') + (iso === today ? ' today' : '') + (dropISO === iso ? ' dropping' : '')} onDoubleClick={() => onNewPost(iso)} {...dropProps(iso)}>
                   <div className="comm-cell-h">
                     <span className="comm-day">{dd}</span>
                     <CommAddBtn iso={iso} tags={tags} onNewPost={onNewPost} onNewEvent={onNewEvent} onAddMilestone={onAddMilestone} />

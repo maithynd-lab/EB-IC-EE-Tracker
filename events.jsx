@@ -84,7 +84,108 @@ const PHASES = [['pre', 'Pre-Event'], ['during', 'During-Event'], ['post', 'Post
 // deadline luôn.
 const PCC_DOW = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
-function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, onTogglePosted, onUpdatePost, onNewPost }) {
+// ── BulkImportPanel: dán bảng (tab-separated, copy từ Google Sheet) → tự tách
+// cột, cho chọn mỗi cột là Tên bài/PIC/Kênh/Deadline, rồi tạo hàng loạt content
+// gắn thẳng vào project này. Kênh chưa có sẽ tự tạo mới; PIC không khớp tên
+// thành viên nào thì bỏ trống PIC, giữ lại tên gốc trong ghi chú.
+const IMPORT_FIELDS = [['title', 'Tên bài'], ['pic', 'PIC'], ['channel', 'Kênh'], ['date', 'Deadline'], ['skip', 'Bỏ qua']];
+function guessImportField(h) {
+  const s = (h || '').toLowerCase();
+  if (/pic/.test(s)) return 'pic';
+  if (/channel|kênh/.test(s)) return 'channel';
+  if (/deadline|ngày|date/.test(s)) return 'date';
+  if (/task|content|tên|title|bài/.test(s)) return 'title';
+  return 'skip';
+}
+function parseFlexDate(s) {
+  if (!s) return null;
+  const t = s.trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m) { let y = m[3]; if (y.length === 2) y = '20' + y; return `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; }
+  return null;
+}
+
+function BulkImportPanel({ event, members, channels, onCreateChannel, onImportPosts, onClose }) {
+  const [raw, setRaw] = React.useState('');
+  const [hasHeader, setHasHeader] = React.useState(true);
+  const lines = raw.split('\n').map((l) => l.replace(/\r$/, '')).filter((l) => l.trim().length > 0);
+  const parsedRows = lines.map((l) => l.split('\t'));
+  const colCount = parsedRows.reduce((n, r) => Math.max(n, r.length), 0);
+  const headerRow = parsedRows[0] || [];
+  const dataRows = hasHeader ? parsedRows.slice(1) : parsedRows;
+
+  const lastColCountRef = React.useRef(0);
+  const [fieldMap, setFieldMap] = React.useState([]);
+  React.useEffect(() => {
+    if (colCount !== lastColCountRef.current) {
+      lastColCountRef.current = colCount;
+      setFieldMap(Array.from({ length: colCount }, (_, i) => guessImportField(headerRow[i])));
+    }
+  }, [colCount]);
+
+  const setField = (i, val) => setFieldMap((prev) => prev.map((f, idx) => idx === i ? val : f));
+
+  const preview = dataRows.map((cols) => {
+    const row = { title: '', pic: '', channel: '', date: '' };
+    fieldMap.forEach((f, i) => { if (f !== 'skip' && cols[i] !== undefined && cols[i].trim()) row[f] = (row[f] ? row[f] + ' ' : '') + cols[i].trim(); });
+    return row;
+  }).filter((r) => r.title || r.channel || r.date);
+
+  const doImport = () => {
+    const newPosts = preview.map((r) => {
+      const pl = r.pic.toLowerCase();
+      const member = pl ? members.find((m) => m.name.toLowerCase().includes(pl) || pl.includes(m.name.toLowerCase())) : null;
+      let channelIds = [];
+      if (r.channel) {
+        const ch = channels.find((c) => c.name.toLowerCase() === r.channel.toLowerCase());
+        if (ch) channelIds = [ch.id];
+        else { const created = onCreateChannel(r.channel, TAG_PALETTE[Math.floor(Math.random() * TAG_PALETTE.length)]); channelIds = [created.id]; }
+      }
+      return {
+        title: r.title, pic: member ? member.id : null, channelIds, date: parseFlexDate(r.date),
+        note: (r.pic && !member) ? ('PIC gốc: ' + r.pic) : '', eventId: event.id,
+      };
+    });
+    onImportPosts(newPosts);
+    onClose();
+  };
+
+  return (
+    <div className="pcc-import">
+      <div className="pcc-import-h">Dán để nhập nhanh</div>
+      <textarea className="pcc-import-ta" rows={4} value={raw}
+                placeholder={'Copy 1 vùng từ Google Sheet rồi dán vào đây (Tên bài, PIC, Kênh, Deadline…)'}
+                onChange={(e) => setRaw(e.target.value)} />
+      {colCount > 0 && (
+        <>
+          <label className="pcc-import-check">
+            <input type="checkbox" checked={hasHeader} onChange={(e) => setHasHeader(e.target.checked)} /> Dòng đầu là tiêu đề cột
+          </label>
+          <div className="pcc-import-cols">
+            {Array.from({ length: colCount }).map((_, i) => (
+              <div className="pcc-import-col" key={i}>
+                <div className="pcc-import-sample">{(dataRows[0] && dataRows[0][i]) || '(trống)'}</div>
+                <select value={fieldMap[i] || 'skip'} onChange={(e) => setField(i, e.target.value)}>
+                  {IMPORT_FIELDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+          <div className="pcc-import-summary">{preview.length} bài sẽ được thêm vào <b>{event.name}</b></div>
+        </>
+      )}
+      <div className="pcc-import-acts">
+        <button className="btn ghost sm" onClick={onClose}>Huỷ</button>
+        <button className="btn primary sm" disabled={preview.length === 0} onClick={doImport}>Nhập {preview.length} bài</button>
+      </div>
+    </div>
+  );
+}
+
+function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, onTogglePosted, onUpdatePost, onNewPost, onCreateChannel, onImportPosts }) {
+  const [showImport, setShowImport] = React.useState(false);
   const myPosts = (posts || []).filter((p) => p.eventId === event.id);
   const eventDay = event.endDate || event.date || todayISO();
   const today = todayISO();
@@ -145,7 +246,7 @@ function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, o
               {days.map((iso, i) => {
                 const dt = parseISO(iso);
                 return (
-                  <div key={iso} className={'pcc-day' + (iso === today ? ' today' : '') + (iso === eventDay ? ' event' : '') + (dropKey === iso ? ' dropping' : '')} {...dropProps(iso)}>
+                  <div key={iso} className={'pcc-day' + ((i === 5 || i === 6) ? ' we' : '') + (iso === today ? ' today' : '') + (iso === eventDay ? ' event' : '') + (dropKey === iso ? ' dropping' : '')} {...dropProps(iso)}>
                     <div className="pcc-day-h"><span className="pcc-day-dow">{PCC_DOW[i]}</span><span className="pcc-day-num">{dt.getDate()}/{dt.getMonth() + 1}</span></div>
                     <div className="pcc-day-body">
                       {(byDay[iso] || []).length === 0 && <div className="pcc-day-empty">Kéo content vào đây</div>}
@@ -160,17 +261,87 @@ function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, o
       </div>
       <div className={'pcc-backlog' + (dropKey === 'none' ? ' dropping' : '')} {...dropProps('none')}>
         <div className="pcc-backlog-h"><IconNote size={13} /> Content <span className="wp-count">{backlog.length}</span></div>
-        <div className="pcc-backlog-list">
-          {backlog.length === 0 && <div className="wp-empty">Chưa có content nào gắn với project này.</div>}
-          {backlog.map(PostCard)}
-        </div>
-        <button className="btn ghost sm pcc-add" onClick={() => onNewPost(null, event.id)}><IconPlus size={13} /> Thêm content</button>
+        {showImport ? (
+          <BulkImportPanel event={event} members={members} channels={channels}
+                           onCreateChannel={onCreateChannel} onImportPosts={onImportPosts}
+                           onClose={() => setShowImport(false)} />
+        ) : (
+          <>
+            <div className="pcc-backlog-list">
+              {backlog.length === 0 && <div className="wp-empty">Chưa có content nào gắn với project này.</div>}
+              {backlog.map(PostCard)}
+            </div>
+            <button className="btn ghost sm pcc-add" onClick={() => onNewPost(null, event.id)}><IconPlus size={13} /> Thêm content</button>
+            <button className="btn ghost sm pcc-add" onClick={() => setShowImport(true)}><IconNote size={13} /> Dán để nhập nhanh</button>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onEditEvent, onUpdateEvent, onSetPhase, past, onOpenPost, onTogglePosted, onUpdatePost, onNewPost }) {
+// ── MilestoneRows: danh sách mốc thời gian dùng chung (EventEditor + KeyDatesField) ──
+function MilestoneRows({ rows, onAdd, onUpdate, onRemove, placeholderName }) {
+  const [calOpenId, setCalOpenId] = React.useState(null);
+  return (
+    <div className="ev-ms-list">
+      {rows.map((ms) => (
+        <div className="ev-ms-row" key={ms.id}>
+          <div className="due-picker">
+            <button className="due-btn set ev-ms-datebtn" onClick={() => setCalOpenId((o) => o === ms.id ? null : ms.id)}>
+              <IconCalendar size={13} /> {ms.date ? fmtFullDate(ms.date) : 'Chọn ngày'}
+            </button>
+            {calOpenId === ms.id && (
+              <Calendar value={ms.date} onPick={(iso) => { onUpdate(ms.id, { date: iso }); setCalOpenId(null); }}
+                        onClear={() => setCalOpenId(null)} />
+            )}
+          </div>
+          <input className="ev-ms-label" value={ms.label} placeholder={placeholderName || 'Tên mốc'}
+                 onChange={(e) => onUpdate(ms.id, { label: e.target.value })} />
+          {rows.length > 1 && (
+            <button className="ev-ms-x" onClick={() => onRemove(ms.id)} aria-label="Xoá mốc"><IconClose size={12} /></button>
+          )}
+        </div>
+      ))}
+      <button className="btn ghost sm" onClick={onAdd}><IconPlus size={13} /> Thêm mốc</button>
+    </div>
+  );
+}
+
+// ── KeyDatesField: "Key dates" ngay trong overview card — popover quản lý mốc,
+// tự dùng chung dữ liệu event.milestones nên hiện thẳng lên Comm Calendar. ──
+function KeyDatesField({ event, onUpdateEvent }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const rows = event.milestones && event.milestones.length ? event.milestones : [{ id: 'm0', date: event.date || null, label: '' }];
+  const setRows = (next) => onUpdateEvent(event.id, { milestones: next });
+  const add = () => setRows([...rows, { id: Math.random().toString(36).slice(2, 9), date: event.date || todayISO(), label: '' }]);
+  const update = (id, patch) => setRows(rows.map((m) => m.id === id ? { ...m, ...patch } : m));
+  const remove = (id) => setRows(rows.filter((m) => m.id !== id));
+  const summary = rows.length > 1 ? `${rows.length} mốc` : (rows[0].label || (rows[0].date ? fmtFullDate(rows[0].date) : 'Chưa có mốc'));
+
+  return (
+    <div className="info-field info-date" ref={ref}>
+      <span className="info-ic"><IconCalendar size={14} /></span>
+      <button className="info-datebtn" onClick={() => setOpen((o) => !o)}>Key dates: {summary}</button>
+      {open && (
+        <div className="pop kd-pop" onClick={(e) => e.stopPropagation()}>
+          <div className="ev-datelbl">Key dates</div>
+          <MilestoneRows rows={rows} onAdd={add} onUpdate={update} onRemove={remove} placeholderName={event.name} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onEditEvent, onUpdateEvent, onSetPhase, past, onOpenPost, onTogglePosted, onUpdatePost, onNewPost, onCreateChannel, onImportPosts }) {
   const prep = tasks.filter((t) => t.tagIds.includes(event.id));
   const done = prep.filter((t) => t.done);
   const total = prep.length;
@@ -262,6 +433,7 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
                 </div>
               )}
             </div>
+            <KeyDatesField event={event} onUpdateEvent={onUpdateEvent} />
             <InfoField icon={<IconPin size={14} />} value={event.venue} placeholder="Địa điểm" onChange={(v) => onUpdateEvent(event.id, { venue: v })} />
             <InfoField icon={<IconLink size={14} />} value={event.docLink} placeholder="Link tài liệu (Drive/Docs)" onChange={(v) => onUpdateEvent(event.id, { docLink: v })} type="url" />
           </div>
@@ -309,13 +481,14 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
       </div>
 
       <ProjectContentCalendar event={event} posts={posts} channels={channels} members={members}
-                              onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost} />
+                              onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost}
+                              onCreateChannel={onCreateChannel} onImportPosts={onImportPosts} />
     </section>
   );
 }
 
 // ── EventsSection ────────────────────────────────────────────────────────
-function EventsSection({ events, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase, onOpenPost, onTogglePosted, onUpdatePost, onNewPost }) {
+function EventsSection({ events, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase, onOpenPost, onTogglePosted, onUpdatePost, onNewPost, onCreateChannel, onImportPosts }) {
   const [showPast, setShowPast] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const ql = query.trim().toLowerCase();
@@ -352,7 +525,8 @@ function EventsSection({ events, tasks, members, posts, channels, onToggle, onOp
           <EventBlock key={e.id} event={e} tasks={tasks} members={members} posts={posts} channels={channels}
                       onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onAddTask={onAddTask} onEditEvent={onEditEvent}
                       onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase}
-                      onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost} />
+                      onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost}
+                      onCreateChannel={onCreateChannel} onImportPosts={onImportPosts} />
         ))}
       </div>
 
@@ -368,7 +542,8 @@ function EventsSection({ events, tasks, members, posts, channels, onToggle, onOp
                 <EventBlock key={e.id} event={e} tasks={tasks} members={members} posts={posts} channels={channels} past
                             onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onAddTask={onAddTask} onEditEvent={onEditEvent}
                             onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase}
-                            onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost} />
+                            onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost}
+                            onCreateChannel={onCreateChannel} onImportPosts={onImportPosts} />
               ))}
             </div>
           )}
@@ -460,8 +635,7 @@ function TagManager({ open, tags, tasks, onUpdate, onDelete, onAdd, onClose }) {
 function EventEditor({ event, onSave, onDelete, onClose }) {
   const [draft, setDraft] = React.useState(event);
   const [calOpen, setCalOpen] = React.useState(false);
-  const [msCalOpen, setMsCalOpen] = React.useState(null);
-  React.useEffect(() => { setDraft(event); setCalOpen(false); setMsCalOpen(null); }, [event]);
+  React.useEffect(() => { setDraft(event); setCalOpen(false); }, [event]);
   if (!event || !draft) return null;
   const set = (p) => setDraft((d) => ({ ...d, ...p }));
   const canSave = (draft.name || '').trim().length > 0;
@@ -546,27 +720,7 @@ function EventEditor({ event, onSave, onDelete, onClose }) {
 
           <div className="field">
             <div className="label"><IconCalendar size={14} /> Mốc thời gian</div>
-            <div className="ev-ms-list">
-              {msRows.map((ms) => (
-                <div className="ev-ms-row" key={ms.id}>
-                  <div className="due-picker">
-                    <button className="due-btn set ev-ms-datebtn" onClick={() => setMsCalOpen((o) => o === ms.id ? null : ms.id)}>
-                      <IconCalendar size={13} /> {ms.date ? fmtFullDate(ms.date) : 'Chọn ngày'}
-                    </button>
-                    {msCalOpen === ms.id && (
-                      <Calendar value={ms.date} onPick={(iso) => { updateMilestone(ms.id, { date: iso }); setMsCalOpen(null); }}
-                                onClear={() => setMsCalOpen(null)} />
-                    )}
-                  </div>
-                  <input className="ev-ms-label" value={ms.label} placeholder={draft.name || 'Tên mốc'}
-                         onChange={(e) => updateMilestone(ms.id, { label: e.target.value })} />
-                  {msRows.length > 1 && (
-                    <button className="ev-ms-x" onClick={() => removeMilestone(ms.id)} aria-label="Xoá mốc"><IconClose size={12} /></button>
-                  )}
-                </div>
-              ))}
-              <button className="btn ghost sm" onClick={addMilestone}><IconPlus size={13} /> Thêm mốc</button>
-            </div>
+            <MilestoneRows rows={msRows} onAdd={addMilestone} onUpdate={updateMilestone} onRemove={removeMilestone} placeholderName={draft.name} />
             <div className="field-hint">Project có nhiều đợt (VD: 3 mốc trong tháng) — mỗi mốc hiện riêng, đúng ngày, trên Comm Calendar.</div>
           </div>
         </div>

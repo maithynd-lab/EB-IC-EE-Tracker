@@ -787,6 +787,7 @@ function App() {
   const openNewPost = (date, eventId) => setEditingPost({ id: uid(), date, title: '', channelIds: [], pic: members[0].id, url: '', note: '', eventId: eventId || null, posted: false, isNew: true });
   const openEditPost = (p) => setEditingPost({ channelIds: [], url: '', note: '', ...p, isNew: false });
   const savePost = (draft) => { const { isNew, ...clean } = draft; setPosts((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? clean : x)); setEditingPost(null); };
+  const importPosts = (rows) => setPosts((prev) => [...prev, ...rows.map((r) => ({ id: uid(), date: r.date || null, title: r.title || '', channelIds: r.channelIds || [], pic: r.pic || members[0].id, url: '', note: r.note || '', eventId: r.eventId || null, posted: false }))]);
   const updatePost = (id, patch) => setPosts((prev) => prev.map((x) => x.id === id ? { ...x, ...patch } : x));
   const deletePost = (id) => { setPosts((prev) => prev.filter((x) => x.id !== id)); setEditingPost(null); };
   const createChannel = (name, color) => { const c = { id: uid(), name, color }; setChannels((prev) => [...prev, c]); return c; };
@@ -883,7 +884,8 @@ function App() {
                          onToggle={toggle} onOpen={openEdit} onAddPrep={addPrep} onAddTask={openNewForEvent}
                          onCreateEvent={() => openNewEvent(todayISO())} onEditEvent={openEditEvent}
                          onUpdateEvent={updateTag} onSetPhase={setPhase}
-                         onOpenPost={openEditPost} onTogglePosted={togglePosted} onUpdatePost={updatePost} onNewPost={openNewPost} />
+                         onOpenPost={openEditPost} onTogglePosted={togglePosted} onUpdatePost={updatePost} onNewPost={openNewPost}
+                         onCreateChannel={createChannel} onImportPosts={importPosts} />
           <CommCalendar posts={posts} channels={channels} members={members} events={events} tags={tags} holidays={SEED_HOLIDAYS}
                         refDate={commRef} setRefDate={setCommRef}
                         view={commView} setView={setCommView}
