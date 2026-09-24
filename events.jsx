@@ -293,8 +293,8 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
 // ── EventsSection ────────────────────────────────────────────────────────
 function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, onAddTask, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase }) {
   const [showPast, setShowPast] = React.useState(false);
-  const upcoming = events.filter((e) => daysUntil(e.date) >= 0).sort((a, b) => a.date < b.date ? -1 : 1);
-  const pastEvents = events.filter((e) => daysUntil(e.date) < 0).sort((a, b) => a.date > b.date ? -1 : 1);
+  const upcoming = events.filter((e) => daysUntil(e.endDate || e.date) >= 0).sort((a, b) => a.date < b.date ? -1 : 1);
+  const pastEvents = events.filter((e) => daysUntil(e.endDate || e.date) < 0).sort((a, b) => a.date > b.date ? -1 : 1);
 
   return (
     <section className="events">
