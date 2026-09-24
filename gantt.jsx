@@ -174,12 +174,16 @@ function ProjectGantt({ range, tasks, tags, members, onOpen, onNewProject, onNew
   const [collapsed, setCollapsed] = React.useState({});
   const toggleRow = (id) => setCollapsed((c) => ({ ...c, [id]: !c[id] }));
 
-  // Mỗi tag = 1 project. `all` = toàn bộ task của project; `tasks` cũng vậy — mọi task của
-  // project đều liệt kê mỗi tháng (task quá hạn / chưa có deadline / đã xong đều không bị ẩn),
-  // chỉ có vị trí trên trục ngày là phụ thuộc deadline có rơi vào tháng đang xem hay không.
+  // Mỗi tag = 1 project. `all` = toàn bộ task của project, `tasks` = task liên quan tháng đang xem
+  // (deadline rơi vào tháng này, hoặc đã xong trong tháng này dù deadline ở tháng khác — task đã
+  // xong không bị ẩn, chỉ hiện xám/gạch ngang thay vì biến mất).
   const byTag = React.useMemo(() => tags.map((tg) => {
     const all = tasks.filter((t) => (t.tagIds || []).includes(tg.id));
-    const shown = all;
+    const shown = all.filter((t) => {
+      const s = gTaskSpan(t);
+      if (s && !(s.to < range.start || s.from > range.end)) return true;
+      return t.done && t.completedAt && inRange(t.completedAt, range.start, range.end);
+    });
     const marks = [];
     shown.forEach((t) => {
       const s = gTaskSpan(t);

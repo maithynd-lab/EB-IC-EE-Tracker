@@ -293,8 +293,11 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
 // ── EventsSection ────────────────────────────────────────────────────────
 function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, onAddTask, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase }) {
   const [showPast, setShowPast] = React.useState(false);
-  const upcoming = events.filter((e) => daysUntil(e.endDate || e.date) >= 0).sort((a, b) => a.date < b.date ? -1 : 1);
-  const pastEvents = events.filter((e) => daysUntil(e.endDate || e.date) < 0).sort((a, b) => a.date > b.date ? -1 : 1);
+  const [query, setQuery] = React.useState('');
+  const ql = query.trim().toLowerCase();
+  const matchesQuery = (e) => !ql || (e.name || '').toLowerCase().includes(ql);
+  const upcoming = events.filter((e) => daysUntil(e.endDate || e.date) >= 0).filter(matchesQuery).sort((a, b) => a.date < b.date ? -1 : 1);
+  const pastEvents = events.filter((e) => daysUntil(e.endDate || e.date) < 0).filter(matchesQuery).sort((a, b) => a.date > b.date ? -1 : 1);
 
   return (
     <section className="events">
@@ -306,10 +309,18 @@ function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, on
         <button className="btn primary sm" onClick={onCreateEvent}><IconPlus size={16} /> Tạo sự kiện</button>
       </div>
 
+      <div className="events-search">
+        <IconSearch size={14} />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm sự kiện / project…" />
+        {query && <button className="events-search-x" onClick={() => setQuery('')} aria-label="Xoá tìm kiếm"><IconClose size={12} /></button>}
+      </div>
+
       {upcoming.length === 0 && (
         <div className="events-empty">
           <span className="events-empty-emoji">📅</span>
-          Chưa có sự kiện sắp tới. Bấm <b>Tạo sự kiện</b> để đặt ngày & gom việc cần chuẩn bị.
+          {query
+            ? 'Không tìm thấy sự kiện nào khớp.'
+            : <>Chưa có sự kiện sắp tới. Bấm <b>Tạo sự kiện</b> để đặt ngày & gom việc cần chuẩn bị.</>}
         </div>
       )}
       <div className="events-list">

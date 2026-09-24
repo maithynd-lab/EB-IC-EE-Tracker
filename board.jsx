@@ -838,24 +838,20 @@ function App() {
               <button key={k} className={'seg-btn' + (view === k ? ' on' : '')} onClick={() => setView(k)}>{l}</button>
             ))}
           </div>
-          {view === 'board' && (
-            <div className="seg compact scopeseg">
-              {[['all', 'Tất cả'], ['today', 'Hôm nay'], ['week', 'Tuần này']].map(([k, l]) => (
-                <button key={k} className={'seg-btn' + (taskScope === k ? ' on' : '')} onClick={() => setTaskScope(k)}>{l}</button>
+          <div className="seg compact scopeseg" style={{ visibility: view === 'board' ? 'visible' : 'hidden' }}>
+            {[['all', 'Tất cả'], ['today', 'Hôm nay'], ['week', 'Tuần này']].map(([k, l]) => (
+              <button key={k} className={'seg-btn' + (taskScope === k ? ' on' : '')} onClick={() => setTaskScope(k)}>{l}</button>
+            ))}
+          </div>
+          <div className="sortwrap" style={{ visibility: view === 'board' ? 'visible' : 'hidden' }}>
+            <IconSort size={15} />
+            <span className="sort-lbl">Sắp xếp</span>
+            <div className="seg compact">
+              {[['manual', 'Thủ công'], ['priority', 'Priority'], ['deadline', 'Deadline']].map(([k, l]) => (
+                <button key={k} className={'seg-btn' + (sort === k ? ' on' : '')} onClick={() => setSort(k)}>{l}</button>
               ))}
             </div>
-          )}
-          {view === 'board' && (
-            <div className="sortwrap">
-              <IconSort size={15} />
-              <span className="sort-lbl">Sắp xếp</span>
-              <div className="seg compact">
-                {[['manual', 'Thủ công'], ['priority', 'Priority'], ['deadline', 'Deadline']].map(([k, l]) => (
-                  <button key={k} className={'seg-btn' + (sort === k ? ' on' : '')} onClick={() => setSort(k)}>{l}</button>
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
           <button className="iconbtn tagbtn" onClick={() => setShowTags(true)} title="Quản lý tag & sự kiện" aria-label="Quản lý tag"><IconTag size={18} /></button>
         </div>
       </header>

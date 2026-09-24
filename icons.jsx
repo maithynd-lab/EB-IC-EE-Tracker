@@ -30,6 +30,7 @@ const IconList    = (p) => <Ic {...p} d={<><path d="M8 6h12M8 12h12M8 18h12" /><
 const IconGrid    = (p) => <Ic {...p} d={<><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></>} />;
 const IconColumns = (p) => <Ic {...p} d={<><rect x="3.5" y="4" width="5" height="16" rx="1.4"/><rect x="9.5" y="4" width="5" height="16" rx="1.4"/><rect x="15.5" y="4" width="5" height="16" rx="1.4"/></>} />;
 const IconCalPlus = (p) => <Ic {...p} d={<><rect x="3.5" y="5" width="17" height="16" rx="3" /><path d="M3.5 10h17" /><path d="M8 3v4M16 3v4" /><path d="M12 13.5v4M10 15.5h4" /></>} />;
+const IconSearch  = (p) => <Ic {...p} d={<><circle cx="10.5" cy="10.5" r="6.5" /><path d="M19 19l-4-4" /></>} />;
 
 // Build a Google Calendar "add event" link. Pure client-side, free, works offline to compose.
 // startTime/endTime are "HH:MM" (local). If startTime set => timed event, else all-day.
@@ -59,5 +60,5 @@ function gcalUrl({ title, date, endDate, startTime, endTime, details, location }
 Object.assign(window, {
   IconCheck, IconPlus, IconClose, IconTrash, IconCalendar,
   IconChevL, IconChevR, IconSort, IconFlag, IconTag, IconNote, IconDrag, IconPrint, IconClock, IconGear, IconChevD,
-  IconPin, IconLink, IconUsers, IconList, IconGrid, IconColumns, IconCalPlus, gcalUrl,
+  IconPin, IconLink, IconUsers, IconList, IconGrid, IconColumns, IconCalPlus, IconSearch, gcalUrl,
 });

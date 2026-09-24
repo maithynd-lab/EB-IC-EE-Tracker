@@ -322,6 +322,14 @@
   .events-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:18px 0 16px}
   .events-head h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em}
   .events-head p{margin:3px 0 0;font-size:12.5px;color:var(--muted);font-weight:500}
+  .events-search{display:flex;align-items:center;gap:8px;padding:9px 12px;margin-bottom:16px;
+    background:var(--panel);border-radius:var(--r-md);box-shadow:var(--shadow);color:var(--muted);max-width:320px}
+  .events-search input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:13px;
+    font-weight:600;color:var(--ink);outline:none}
+  .events-search input::placeholder{color:var(--muted);font-weight:500}
+  .events-search-x{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px;
+    border-radius:5px;display:grid;place-items:center;flex-shrink:0}
+  .events-search-x:hover{background:rgba(20,22,30,.06);color:var(--ink)}
   .events-empty{display:flex;align-items:center;gap:10px;padding:22px;border:1.5px dashed var(--line);
     border-radius:var(--r-lg);color:var(--muted);font-size:13.5px;font-weight:500;background:rgba(255,255,255,.5)}
   .events-empty-emoji{font-size:22px}
