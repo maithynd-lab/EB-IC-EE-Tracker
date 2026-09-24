@@ -38,6 +38,12 @@ function countdownLabel(iso) {
 function fmtFullDate(iso) { const d = parseISO(iso); return `${EV_DOW[d.getDay()]}, ${d.getDate()} ${EV_MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
 function dBadge(iso) { const n = daysUntil(iso); return n === 0 ? 'D-DAY' : n > 0 ? `D-${n}` : `D+${-n}`; }
 
+// Mốc thời gian của 1 project (tag): mảng tường minh nếu có, không thì suy ra 1 mốc từ ngày diễn ra.
+function tagMilestones(tag) {
+  if (Array.isArray(tag.milestones) && tag.milestones.length) return tag.milestones;
+  return tag.date ? [{ id: 'm0', date: tag.date, label: tag.name }] : [];
+}
+
 // ── EventBlock ───────────────────────────────────────────────────────────
 function InfoField({ icon, value, placeholder, onChange, type }) {
   return (
@@ -70,84 +76,101 @@ function PhaseAdd({ members, defOwner, onAdd }) {
 
 const PHASES = [['pre', 'Pre-Event'], ['during', 'During-Event'], ['post', 'Post-Event']];
 
-// ── Auto-growing textarea (multi-line note input) ──────────────────────────
-function AutoTextarea({ value, className, onChange, onKeyDown, placeholder, autoFocus }) {
-  const ref = React.useRef(null);
-  const fit = () => { const el = ref.current; if (!el) return; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };
-  React.useLayoutEffect(fit, [value]);
-  return (
-    <textarea ref={ref} className={className} value={value} placeholder={placeholder} rows={1} autoFocus={autoFocus}
-              onChange={(e) => { onChange(e); fit(); }} onKeyDown={onKeyDown} onInput={fit} />
-  );
-}
+// ── ProjectContentCalendar: mini content calendar riêng cho 1 project ──────
+// Dùng chung dữ liệu "posts" với Comm Calendar (lọc theo eventId) — sửa ở đây
+// hiện luôn bên Comm Calendar và ngược lại. Cột phải là danh sách kéo-thả toàn
+// bộ content của project, sắp theo khoảng cách tới ngày diễn ra (gần nhất lên
+// đầu, chưa có ngày thì xuống cuối); kéo 1 thẻ thả vào 1 ngày trên lịch là gán
+// deadline luôn.
+const PCC_DOW = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
-// ── EventNotes: wide 2-column note board (open ↔ Chốt đơn), drag to resolve ──
-function EventNotes({ event, onUpdateEvent }) {
-  const notes = event.notes || [];
-  const [text, setText] = React.useState('');
+function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, onTogglePosted, onUpdatePost, onNewPost }) {
+  const myPosts = (posts || []).filter((p) => p.eventId === event.id);
+  const eventDay = event.endDate || event.date || todayISO();
+  const today = todayISO();
+
+  const allDates = [event.date, event.endDate, ...myPosts.map((p) => p.date)].filter(Boolean);
+  const anchorStart = allDates.length ? allDates.reduce((a, b) => a < b ? a : b) : today;
+  const anchorEnd = allDates.length ? allDates.reduce((a, b) => a > b ? a : b) : today;
+  const rangeStart = weekRange(anchorStart).start;
+  const rangeEnd = weekRange(anchorEnd).end;
+  const weekStarts = [];
+  { let cur = rangeStart, guard = 0; while (cur <= rangeEnd && guard++ < 26) { weekStarts.push(cur); cur = addDaysISO(cur, 7); } }
+
+  const byDay = {};
+  myPosts.forEach((p) => { if (p.date) (byDay[p.date] = byDay[p.date] || []).push(p); });
+
+  const dist = (p) => p.date ? Math.abs(Math.round((parseISO(p.date) - parseISO(eventDay)) / 86400000)) : Infinity;
+  const backlog = [...myPosts].sort((a, b) => dist(a) - dist(b) || (a.date || '9999').localeCompare(b.date || '9999'));
+
   const [dragId, setDragId] = React.useState(null);
-  const [dropSide, setDropSide] = React.useState(null);
-  const save = (next) => onUpdateEvent(event.id, { notes: next });
-  const add = () => { const v = text.trim(); if (!v) return; save([...notes, { id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: v, done: false }]); setText(''); };
-  const patch = (id, p) => save(notes.map((n) => (n.id === id ? { ...n, ...p } : n)));
-  const del = (id) => save(notes.filter((n) => n.id !== id));
-  const open = notes.filter((n) => !n.done);
-  const solved = notes.filter((n) => n.done);
-
-  const Note = (n) => (
-    <div key={n.id} className={'ev-note' + (n.done ? ' done' : '') + (dragId === n.id ? ' dragging' : '')}>
-      <div className="ev-note-main">
-        <span className="ev-note-grip" draggable title="Kéo để chuyển"
-              onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragId(n.id); }}
-              onDragEnd={() => { setDragId(null); setDropSide(null); }}>{'\u2807'}</span>
-        <AutoTextarea className="ev-note-text" value={n.text} placeholder="Nội dung note…"
-               onChange={(e) => patch(n.id, { text: e.target.value })} />
-        {!n.done
-          ? <button className="ev-note-btn ok" title="Chốt đơn" onClick={() => patch(n.id, { done: true })}><IconCheck size={13} sw={2.8} /></button>
-          : <button className="ev-note-btn" title="Mở lại" onClick={() => patch(n.id, { done: false })}>{'\u21A9'}</button>}
-        <button className="ev-note-btn" title="Xoá" onClick={() => del(n.id)}><IconClose size={12} sw={2.4} /></button>
-      </div>
-      {n.done && (
-        <AutoTextarea className="ev-note-sol" value={n.solution || ''} placeholder="Giải pháp / next step…"
-               onChange={(e) => patch(n.id, { solution: e.target.value })} />
-      )}
-    </div>
-  );
-  const colProps = (side) => ({
-    onDragOver: (e) => { if (dragId) { e.preventDefault(); if (dropSide !== side) setDropSide(side); } },
-    onDragLeave: (e) => { if (e.currentTarget === e.target) setDropSide(null); },
-    onDrop: (e) => { e.preventDefault(); if (dragId) patch(dragId, { done: side === 'done' }); setDragId(null); setDropSide(null); },
+  const [dropKey, setDropKey] = React.useState(null);
+  const dropProps = (key) => ({
+    onDragOver: (e) => { if (dragId) { e.preventDefault(); if (dropKey !== key) setDropKey(key); } },
+    onDragLeave: (e) => { if (e.currentTarget === e.target) setDropKey(null); },
+    onDrop: (e) => { e.preventDefault(); if (dragId) onUpdatePost(dragId, { date: key === 'none' ? null : key }); setDragId(null); setDropKey(null); },
   });
 
+  const PostCard = (p) => {
+    const chs = (p.channelIds || []).map((id) => (channels || []).find((c) => c.id === id)).filter(Boolean);
+    const pic = members.find((m) => m.id === p.pic);
+    return (
+      <div key={p.id} className={'pcc-card' + (p.posted ? ' done' : '') + (dragId === p.id ? ' dragging' : '')}
+           draggable onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragId(p.id); }}
+           onDragEnd={() => { setDragId(null); setDropKey(null); }}
+           onClick={() => onOpenPost(p)}>
+        <button className="card-check sm" style={{ '--accent': pic ? pic.color : '#94A3B8' }}
+                onClick={(e) => { e.stopPropagation(); onTogglePosted(p.id, e); }} aria-label="Đã đăng">
+          {p.posted && <IconCheck size={10} sw={2.8} />}
+        </button>
+        <div className="pcc-card-body">
+          {chs.length > 0 && <div className="pcc-card-chs">{chs.map((c) => <span key={c.id} className="tag mini" style={tagStyle(c.color)}>{c.name}</span>)}</div>}
+          <span className="pcc-card-title">{p.title || 'Chưa đặt tên'}</span>
+          <span className="pcc-card-meta">
+            {pic && <span className="avatar xs" style={{ background: pic.color }} title={pic.name}>{pic.icon || pic.name.charAt(0)}</span>}
+            <span className="pcc-card-date">{p.date ? fmtFullDate(p.date) : 'CHƯA CÓ NGÀY'}</span>
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="ev-notes-wrap">
-      <div className="ev-notes-title"><IconNote size={13} /> Ghi chú nhanh</div>
-      <div className="ev-notes">
-        <div className={'ev-notes-col' + (dropSide === 'open' ? ' dropping' : '')} {...colProps('open')}>
-          <div className="ev-notes-h"><span className="ev-notes-dot ping" /> Cần xử lý <span className="ev-notes-count">{open.length}</span></div>
-          <div className="ev-notes-list">
-            {open.length === 0 && <div className="ev-notes-empty">Chưa có note nào · gõ bên dưới để ping lên</div>}
-            {open.map(Note)}
-          </div>
-          <div className="ev-note-add">
-            <AutoTextarea value={text} placeholder="+ Ghi note mới… (Enter để xuống dòng, ⌘/Ctrl+Enter để lưu)" onChange={(e) => setText(e.target.value)}
-                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); add(); } }} />
-            <button className="ev-note-add-btn" disabled={!text.trim()} onClick={add} title="Thêm note"><IconPlus size={15} /></button>
-          </div>
+    <div className="pcc-wrap">
+      <div className="pcc-cal">
+        {weekStarts.map((wk) => {
+          const days = []; for (let i = 0; i < 7; i++) days.push(addDaysISO(wk, i));
+          return (
+            <div className="pcc-week" key={wk}>
+              {days.map((iso, i) => {
+                const dt = parseISO(iso);
+                return (
+                  <div key={iso} className={'pcc-day' + (iso === today ? ' today' : '') + (iso === eventDay ? ' event' : '') + (dropKey === iso ? ' dropping' : '')} {...dropProps(iso)}>
+                    <div className="pcc-day-h"><span className="pcc-day-dow">{PCC_DOW[i]}</span><span className="pcc-day-num">{dt.getDate()}/{dt.getMonth() + 1}</span></div>
+                    <div className="pcc-day-body">
+                      {(byDay[iso] || []).length === 0 && <div className="pcc-day-empty">Kéo content vào đây</div>}
+                      {(byDay[iso] || []).map(PostCard)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      <div className={'pcc-backlog' + (dropKey === 'none' ? ' dropping' : '')} {...dropProps('none')}>
+        <div className="pcc-backlog-h"><IconNote size={13} /> Content <span className="wp-count">{backlog.length}</span></div>
+        <div className="pcc-backlog-list">
+          {backlog.length === 0 && <div className="wp-empty">Chưa có content nào gắn với project này.</div>}
+          {backlog.map(PostCard)}
         </div>
-        <div className={'ev-notes-col solved' + (dropSide === 'done' ? ' dropping' : '')} {...colProps('done')}>
-          <div className="ev-notes-h"><span className="ev-notes-dot solved" /> Chốt đơn <span className="ev-notes-count">{solved.length}</span></div>
-          <div className="ev-notes-list">
-            {solved.length === 0 && <div className="ev-notes-empty">Kéo note đã xử lý xong qua đây</div>}
-            {solved.map(Note)}
-          </div>
-        </div>
+        <button className="btn ghost sm pcc-add" onClick={() => onNewPost(null, event.id)}><IconPlus size={13} /> Thêm content</button>
       </div>
     </div>
   );
 }
 
-function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddTask, onEditEvent, onUpdateEvent, onSetPhase, past }) {
+function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onEditEvent, onUpdateEvent, onSetPhase, past, onOpenPost, onTogglePosted, onUpdatePost, onNewPost }) {
   const prep = tasks.filter((t) => t.tagIds.includes(event.id));
   const done = prep.filter((t) => t.done);
   const total = prep.length;
@@ -285,13 +308,14 @@ function EventBlock({ event, tasks, members, onToggle, onOpen, onAddPrep, onAddT
         })}
       </div>
 
-      <EventNotes event={event} onUpdateEvent={onUpdateEvent} />
+      <ProjectContentCalendar event={event} posts={posts} channels={channels} members={members}
+                              onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost} />
     </section>
   );
 }
 
 // ── EventsSection ────────────────────────────────────────────────────────
-function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, onAddTask, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase }) {
+function EventsSection({ events, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase, onOpenPost, onTogglePosted, onUpdatePost, onNewPost }) {
   const [showPast, setShowPast] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const ql = query.trim().toLowerCase();
@@ -325,9 +349,10 @@ function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, on
       )}
       <div className="events-list">
         {upcoming.map((e) => (
-          <EventBlock key={e.id} event={e} tasks={tasks} members={members}
+          <EventBlock key={e.id} event={e} tasks={tasks} members={members} posts={posts} channels={channels}
                       onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onAddTask={onAddTask} onEditEvent={onEditEvent}
-                      onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase} />
+                      onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase}
+                      onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost} />
         ))}
       </div>
 
@@ -340,9 +365,10 @@ function EventsSection({ events, tasks, members, onToggle, onOpen, onAddPrep, on
           {showPast && (
             <div className="events-list">
               {pastEvents.map((e) => (
-                <EventBlock key={e.id} event={e} tasks={tasks} members={members} past
+                <EventBlock key={e.id} event={e} tasks={tasks} members={members} posts={posts} channels={channels} past
                             onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onAddTask={onAddTask} onEditEvent={onEditEvent}
-                            onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase} />
+                            onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase}
+                            onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost} />
               ))}
             </div>
           )}
@@ -434,10 +460,18 @@ function TagManager({ open, tags, tasks, onUpdate, onDelete, onAdd, onClose }) {
 function EventEditor({ event, onSave, onDelete, onClose }) {
   const [draft, setDraft] = React.useState(event);
   const [calOpen, setCalOpen] = React.useState(false);
-  React.useEffect(() => { setDraft(event); setCalOpen(false); }, [event]);
+  const [msCalOpen, setMsCalOpen] = React.useState(null);
+  React.useEffect(() => { setDraft(event); setCalOpen(false); setMsCalOpen(null); }, [event]);
   if (!event || !draft) return null;
   const set = (p) => setDraft((d) => ({ ...d, ...p }));
   const canSave = (draft.name || '').trim().length > 0;
+
+  // Mốc thời gian: mặc định 1 mốc (suy ra từ ngày diễn ra) cho tới khi tự thêm/sửa.
+  const msRows = draft.milestones && draft.milestones.length ? draft.milestones : [{ id: 'm0', date: draft.date, label: '' }];
+  const setMilestones = (rows) => set({ milestones: rows });
+  const addMilestone = () => { setMilestones([...msRows, { id: Math.random().toString(36).slice(2, 9), date: draft.date || todayISO(), label: '' }]); };
+  const updateMilestone = (id, patch) => setMilestones(msRows.map((m) => m.id === id ? { ...m, ...patch } : m));
+  const removeMilestone = (id) => setMilestones(msRows.filter((m) => m.id !== id));
   return (
     <div className="scrim" onMouseDown={onClose}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()} style={{ '--accent': draft.color }}>
@@ -458,8 +492,26 @@ function EventEditor({ event, onSave, onDelete, onClose }) {
             <div className="field">
               <div className="label"><IconCalendar size={14} /> Ngày diễn ra</div>
               <div className="due-picker">
-                <button className="due-btn set" onClick={() => setCalOpen((o) => !o)}><IconCalendar size={15} /> {fmtFullDate(draft.date)}</button>
-                {calOpen && <Calendar value={draft.date} onPick={(iso) => { set({ date: iso }); setCalOpen(false); }} onClear={() => setCalOpen(false)} />}
+                <button className="due-btn set" onClick={() => setCalOpen((o) => !o)}>
+                  <IconCalendar size={15} /> {fmtFullDate(draft.date)}{draft.endDate && draft.endDate !== draft.date ? ' → ' + fmtFullDate(draft.endDate) : ''}
+                </button>
+                {calOpen && (
+                  <div className="pop ev-datepop" onClick={(e) => e.stopPropagation()}>
+                    <div className="ev-datecol">
+                      <div className="ev-datelbl">Ngày bắt đầu</div>
+                      <Calendar value={draft.date}
+                                onPick={(iso) => set({ date: iso, endDate: draft.endDate && draft.endDate < iso ? iso : draft.endDate })}
+                                onClear={() => {}} />
+                    </div>
+                    <div className="ev-datecol">
+                      <div className="ev-datelbl">Ngày kết thúc</div>
+                      <Calendar value={draft.endDate || draft.date}
+                                onPick={(iso) => set({ endDate: iso < draft.date ? draft.date : iso })}
+                                onClear={() => set({ endDate: null })} />
+                    </div>
+                    <button className="btn ghost sm ev-datedone" onClick={() => setCalOpen(false)}>Xong</button>
+                  </div>
+                )}
               </div>
             </div>
             <div className="field">
@@ -491,6 +543,32 @@ function EventEditor({ event, onSave, onDelete, onClose }) {
               ))}
             </div>
           </div>
+
+          <div className="field">
+            <div className="label"><IconCalendar size={14} /> Mốc thời gian</div>
+            <div className="ev-ms-list">
+              {msRows.map((ms) => (
+                <div className="ev-ms-row" key={ms.id}>
+                  <div className="due-picker">
+                    <button className="due-btn set ev-ms-datebtn" onClick={() => setMsCalOpen((o) => o === ms.id ? null : ms.id)}>
+                      <IconCalendar size={13} /> {ms.date ? fmtFullDate(ms.date) : 'Chọn ngày'}
+                    </button>
+                    {msCalOpen === ms.id && (
+                      <Calendar value={ms.date} onPick={(iso) => { updateMilestone(ms.id, { date: iso }); setMsCalOpen(null); }}
+                                onClear={() => setMsCalOpen(null)} />
+                    )}
+                  </div>
+                  <input className="ev-ms-label" value={ms.label} placeholder={draft.name || 'Tên mốc'}
+                         onChange={(e) => updateMilestone(ms.id, { label: e.target.value })} />
+                  {msRows.length > 1 && (
+                    <button className="ev-ms-x" onClick={() => removeMilestone(ms.id)} aria-label="Xoá mốc"><IconClose size={12} /></button>
+                  )}
+                </div>
+              ))}
+              <button className="btn ghost sm" onClick={addMilestone}><IconPlus size={13} /> Thêm mốc</button>
+            </div>
+            <div className="field-hint">Project có nhiều đợt (VD: 3 mốc trong tháng) — mỗi mốc hiện riêng, đúng ngày, trên Comm Calendar.</div>
+          </div>
         </div>
         <div className="modal-foot">
           {!event.isNew ? <button className="btn danger-ghost" onClick={() => onDelete(draft.id)}><IconTrash size={16} /> Xoá</button> : <span />}
@@ -506,4 +584,4 @@ function EventEditor({ event, onSave, onDelete, onClose }) {
   );
 }
 
-Object.assign(window, { daysUntil, countdownLabel, fmtFullDate, dBadge, EventBlock, EventsSection, TagManager, EventEditor, EVENT_ICONS, DEFAULT_EVENT_ICON });
+Object.assign(window, { daysUntil, countdownLabel, fmtFullDate, dBadge, tagMilestones, EventBlock, EventsSection, TagManager, EventEditor, EVENT_ICONS, DEFAULT_EVENT_ICON });

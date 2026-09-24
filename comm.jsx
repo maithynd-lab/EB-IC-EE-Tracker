@@ -250,22 +250,44 @@ function CommList({ posts, channels, members, events, onOpen, onToggle }) {
 }
 
 // ── CommAddBtn: '+' on a day opens a tiny menu (post / event) ───────────────
-function CommAddBtn({ iso, onNewPost, onNewEvent }) {
+// "Sự kiện" không tự tạo project mới — cho chọn project có sẵn để thêm mốc, hoặc tạo project mới.
+function CommAddBtn({ iso, tags, onNewPost, onNewEvent, onAddMilestone }) {
   const [open, setOpen] = React.useState(false);
+  const [picking, setPicking] = React.useState(false);
+  const [q, setQ] = React.useState('');
   const ref = React.useRef(null);
   React.useEffect(() => {
     if (!open) return;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setPicking(false); setQ(''); } };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
+
+  const ql = q.trim().toLowerCase();
+  const matches = (tags || []).filter((t) => t.name.toLowerCase().includes(ql));
+  const close = () => { setOpen(false); setPicking(false); setQ(''); };
+
   return (
     <div className="comm-add-wrap" ref={ref}>
       <button className="comm-add" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} aria-label="Thêm"><IconPlus size={13} /></button>
-      {open && (
+      {open && !picking && (
         <div className="pop comm-add-pop" onClick={(e) => e.stopPropagation()}>
-          <button className="comm-add-opt" onClick={() => { setOpen(false); onNewPost(iso); }}><IconNote size={14} /> Bài đăng</button>
-          <button className="comm-add-opt" onClick={() => { setOpen(false); onNewEvent && onNewEvent(iso); }}><IconCalendar size={14} /> Sự kiện</button>
+          <button className="comm-add-opt" onClick={() => { close(); onNewPost(iso); }}><IconNote size={14} /> Bài đăng</button>
+          <button className="comm-add-opt" onClick={() => setPicking(true)}><IconCalendar size={14} /> Sự kiện</button>
+        </div>
+      )}
+      {open && picking && (
+        <div className="pop comm-add-pop comm-add-pick" onClick={(e) => e.stopPropagation()}>
+          <input className="comm-pick-input" autoFocus value={q} placeholder="Tìm project…" onChange={(e) => setQ(e.target.value)} />
+          <div className="comm-pick-list">
+            {matches.length === 0 && <div className="comm-pick-empty">Không tìm thấy project nào.</div>}
+            {matches.map((t) => (
+              <button key={t.id} className="comm-pick-opt" onClick={() => { onAddMilestone(t.id, iso); close(); }}>
+                <span className="tag" style={tagStyle(t.color)}>{t.icon ? t.icon + ' ' : ''}{t.name}</span>
+              </button>
+            ))}
+          </div>
+          <button className="comm-add-opt comm-pick-new" onClick={() => { onNewEvent && onNewEvent(iso); close(); }}><IconPlus size={14} /> Tạo project mới</button>
         </div>
       )}
     </div>
@@ -273,7 +295,7 @@ function CommAddBtn({ iso, onNewPost, onNewEvent }) {
 }
 
 // ── CommCalendar ───────────────────────────────────────────────────────────
-function CommCalendar({ posts, channels, members, events, holidays, refDate, setRefDate, view, setView, onOpenPost, onNewPost, onNewEvent, onTogglePosted, onOpenEvent, onUpdatePost, onUpdateEvent }) {
+function CommCalendar({ posts, channels, members, events, tags, holidays, refDate, setRefDate, view, setView, onOpenPost, onNewPost, onNewEvent, onTogglePosted, onOpenEvent, onUpdatePost, onAddMilestone, onUpdateMilestoneDate }) {
   const d = parseISO(refDate), y = d.getFullYear(), m = d.getMonth();
   const first = new Date(y, m, 1), startDow = (first.getDay() + 6) % 7;
   const dim = new Date(y, m + 1, 0).getDate();
@@ -284,7 +306,9 @@ function CommCalendar({ posts, channels, members, events, holidays, refDate, set
   const byDate = {};
   posts.forEach((p) => { (byDate[p.date] = byDate[p.date] || []).push(p); });
   const evByDate = {};
-  events.forEach((e) => { const d = e.endDate || e.date; if (d) (evByDate[d] = evByDate[d] || []).push(e); });
+  (tags || []).forEach((tag) => {
+    tagMilestones(tag).forEach((ms) => { if (ms.date) (evByDate[ms.date] = evByDate[ms.date] || []).push({ tag, ms }); });
+  });
   const holByDate = {};
   (holidays || []).forEach((h) => { (holByDate[h.date] = holByDate[h.date] || []).push(h); });
   const today = todayISO();
@@ -292,16 +316,16 @@ function CommCalendar({ posts, channels, members, events, holidays, refDate, set
   const wr = weekRange(refDate);
   const wdays = []; for (let i = 0; i < 7; i++) wdays.push(addDaysISO(wr.start, i));
 
-  const [drag, setDrag] = React.useState(null); // { kind:'post'|'event', id }
+  const [drag, setDrag] = React.useState(null); // { kind:'post', id } | { kind:'event', id: tagId, msId }
   const [dropISO, setDropISO] = React.useState(null);
-  const startDrag = (kind, id) => (e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; setDrag({ kind, id }); };
+  const startDrag = (kind, id, msId) => (e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; setDrag({ kind, id, msId }); };
   const endDrag = () => { setDrag(null); setDropISO(null); };
   const dropProps = (iso) => ({
     onDragOver: (e) => { if (drag) { e.preventDefault(); if (dropISO !== iso) setDropISO(iso); } },
     onDragLeave: (e) => { if (e.currentTarget === e.target) setDropISO(null); },
     onDrop: (e) => {
       e.preventDefault();
-      if (drag) { if (drag.kind === 'post') onUpdatePost && onUpdatePost(drag.id, { date: iso }); else onUpdateEvent && onUpdateEvent(drag.id, { date: iso }); }
+      if (drag) { if (drag.kind === 'post') onUpdatePost && onUpdatePost(drag.id, { date: iso }); else onUpdateMilestoneDate && onUpdateMilestoneDate(drag.id, drag.msId, iso); }
       setDrag(null); setDropISO(null);
     },
   });
@@ -320,11 +344,11 @@ function CommCalendar({ posts, channels, members, events, holidays, refDate, set
           <span className="choliday-name">{h.name}</span>
         </div>
       ))}
-      {(evByDate[iso] || []).map((e) => (
-        <button key={e.id} className="cevent" style={{ background: e.color }} draggable
-                onDragStart={startDrag('event', e.id)} onDragEnd={endDrag}
-                onClick={(ev) => { ev.stopPropagation(); onOpenEvent && onOpenEvent(e); }} title={'Sự kiện: ' + e.name}>
-          {e.icon ? <span className="cevent-ic">{e.icon}</span> : <IconCalendar size={10} />} <span>{e.name}</span>
+      {(evByDate[iso] || []).map(({ tag, ms }) => (
+        <button key={ms.id} className="cevent" style={{ background: tag.color }} draggable
+                onDragStart={startDrag('event', tag.id, ms.id)} onDragEnd={endDrag}
+                onClick={(ev) => { ev.stopPropagation(); onOpenEvent && onOpenEvent(tag); }} title={'Sự kiện: ' + (ms.label || tag.name)}>
+          {tag.icon ? <span className="cevent-ic">{tag.icon}</span> : <IconCalendar size={10} />} <span>{ms.label || tag.name}</span>
         </button>
       ))}
       {(byDate[iso] || []).slice().sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0))
@@ -366,7 +390,7 @@ function CommCalendar({ posts, channels, members, events, holidays, refDate, set
                 <div className="comm-wcol-h">
                   <span className="comm-wcol-dow">{CDOW[i]}</span>
                   <span className="comm-wcol-day">{dt.getDate()}</span>
-                  <CommAddBtn iso={iso} onNewPost={onNewPost} onNewEvent={onNewEvent} />
+                  <CommAddBtn iso={iso} tags={tags} onNewPost={onNewPost} onNewEvent={onNewEvent} onAddMilestone={onAddMilestone} />
                 </div>
                 <div className="comm-wcol-body">{dayChips(iso)}</div>
               </div>
@@ -384,7 +408,7 @@ function CommCalendar({ posts, channels, members, events, holidays, refDate, set
                 <div key={i} className={'comm-cell' + (iso === today ? ' today' : '') + (dropISO === iso ? ' dropping' : '')} onDoubleClick={() => onNewPost(iso)} {...dropProps(iso)}>
                   <div className="comm-cell-h">
                     <span className="comm-day">{dd}</span>
-                    <CommAddBtn iso={iso} onNewPost={onNewPost} onNewEvent={onNewEvent} />
+                    <CommAddBtn iso={iso} tags={tags} onNewPost={onNewPost} onNewEvent={onNewEvent} onAddMilestone={onAddMilestone} />
                   </div>
                   <div className="comm-cell-posts">{dayChips(iso)}</div>
                 </div>

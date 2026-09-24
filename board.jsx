@@ -784,7 +784,7 @@ function App() {
     setPosts((prev) => prev.map((x) => x.id === id ? { ...x, posted: np } : x));
     if (np) { const x = ev && ev.clientX != null ? ev.clientX : window.innerWidth / 2; const y = ev && ev.clientY != null ? ev.clientY : window.innerHeight / 2; if (window.celebrateTask) window.celebrateTask(x, y); }
   };
-  const openNewPost = (date) => setEditingPost({ id: uid(), date, title: '', channelIds: [], pic: members[0].id, url: '', note: '', eventId: null, posted: false, isNew: true });
+  const openNewPost = (date, eventId) => setEditingPost({ id: uid(), date, title: '', channelIds: [], pic: members[0].id, url: '', note: '', eventId: eventId || null, posted: false, isNew: true });
   const openEditPost = (p) => setEditingPost({ channelIds: [], url: '', note: '', ...p, isNew: false });
   const savePost = (draft) => { const { isNew, ...clean } = draft; setPosts((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? clean : x)); setEditingPost(null); };
   const updatePost = (id, patch) => setPosts((prev) => prev.map((x) => x.id === id ? { ...x, ...patch } : x));
@@ -795,6 +795,17 @@ function App() {
   const openEditEvent = (ev) => setEditingEvent({ ...ev, isNew: false });
   const saveEvent = (draft) => { const { isNew, ...clean } = draft; setTags((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? { ...x, ...clean } : x)); setEditingEvent(null); };
   const deleteEventTag = (id) => { deleteTag(id); setEditingEvent(null); };
+  const addMilestone = (tagId, date) => setTags((prev) => prev.map((t) => {
+    if (t.id !== tagId) return t;
+    const base = Array.isArray(t.milestones) && t.milestones.length ? t.milestones : (t.date ? [{ id: 'm0', date: t.date, label: t.name }] : []);
+    return { ...t, milestones: [...base, { id: uid(), date, label: '' }] };
+  }));
+  const updateMilestoneDate = (tagId, msId, date) => setTags((prev) => prev.map((t) => {
+    if (t.id !== tagId) return t;
+    if (msId === 'm0' && !(Array.isArray(t.milestones) && t.milestones.length)) return { ...t, date };
+    const base = Array.isArray(t.milestones) && t.milestones.length ? t.milestones : [{ id: 'm0', date: t.date, label: t.name }];
+    return { ...t, milestones: base.map((m) => m.id === msId ? { ...m, date } : m) };
+  }));
 
   const doDrop = (toOwner, toIndex) => {
     if (!drag) return;
@@ -868,15 +879,16 @@ function App() {
                       drag={drag} setDrag={setDrag} dropInfo={dropInfo} setDropInfo={setDropInfo} onDrop={doDrop} />
             ))}
           </div>
-          <EventsSection events={events} tasks={tasks} members={members}
+          <EventsSection events={events} tasks={tasks} members={members} posts={posts} channels={channels}
                          onToggle={toggle} onOpen={openEdit} onAddPrep={addPrep} onAddTask={openNewForEvent}
                          onCreateEvent={() => openNewEvent(todayISO())} onEditEvent={openEditEvent}
-                         onUpdateEvent={updateTag} onSetPhase={setPhase} />
-          <CommCalendar posts={posts} channels={channels} members={members} events={events} holidays={SEED_HOLIDAYS}
+                         onUpdateEvent={updateTag} onSetPhase={setPhase}
+                         onOpenPost={openEditPost} onTogglePosted={togglePosted} onUpdatePost={updatePost} onNewPost={openNewPost} />
+          <CommCalendar posts={posts} channels={channels} members={members} events={events} tags={tags} holidays={SEED_HOLIDAYS}
                         refDate={commRef} setRefDate={setCommRef}
                         view={commView} setView={setCommView}
                         onOpenPost={openEditPost} onNewPost={openNewPost} onNewEvent={openNewEvent} onTogglePosted={togglePosted} onOpenEvent={openEditEvent}
-                        onUpdatePost={updatePost} onUpdateEvent={updateTag} />
+                        onUpdatePost={updatePost} onAddMilestone={addMilestone} onUpdateMilestoneDate={updateMilestoneDate} />
         </main>
       ) : (
         <main className="report-main">
