@@ -201,8 +201,9 @@ function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, o
   const byDay = {};
   myPosts.forEach((p) => { if (p.date) (byDay[p.date] = byDay[p.date] || []).push(p); });
 
-  const dist = (p) => p.date ? Math.abs(Math.round((parseISO(p.date) - parseISO(eventDay)) / 86400000)) : Infinity;
-  const backlog = [...myPosts].sort((a, b) => dist(a) - dist(b) || (a.date || '9999').localeCompare(b.date || '9999'));
+  // Bài đã có ngày → hiện thẳng vào ô lịch (byDay), không lặp lại ở cột bên phải.
+  // Cột bên phải chỉ giữ bài CHƯA có ngày, chờ kéo vào lịch.
+  const backlog = myPosts.filter((p) => !p.date).sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0));
 
   const [dragId, setDragId] = React.useState(null);
   const [dropKey, setDropKey] = React.useState(null);
@@ -260,7 +261,7 @@ function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, o
         })}
       </div>
       <div className={'pcc-backlog' + (dropKey === 'none' ? ' dropping' : '')} {...dropProps('none')}>
-        <div className="pcc-backlog-h"><IconNote size={13} /> Content <span className="wp-count">{backlog.length}</span></div>
+        <div className="pcc-backlog-h"><IconNote size={13} /> Chưa có ngày <span className="wp-count">{backlog.length}</span></div>
         {showImport ? (
           <BulkImportPanel event={event} members={members} channels={channels}
                            onCreateChannel={onCreateChannel} onImportPosts={onImportPosts}
@@ -268,7 +269,7 @@ function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, o
         ) : (
           <>
             <div className="pcc-backlog-list">
-              {backlog.length === 0 && <div className="wp-empty">Chưa có content nào gắn với project này.</div>}
+              {backlog.length === 0 && <div className="wp-empty">Không có bài nào đang chờ xếp lịch.</div>}
               {backlog.map(PostCard)}
             </div>
             <button className="btn ghost sm pcc-add" onClick={() => onNewPost(null, event.id)}><IconPlus size={13} /> Thêm content</button>
@@ -325,12 +326,15 @@ function KeyDatesField({ event, onUpdateEvent }) {
   const add = () => setRows([...rows, { id: Math.random().toString(36).slice(2, 9), date: event.date || todayISO(), label: '' }]);
   const update = (id, patch) => setRows(rows.map((m) => m.id === id ? { ...m, ...patch } : m));
   const remove = (id) => setRows(rows.filter((m) => m.id !== id));
-  const summary = rows.length > 1 ? `${rows.length} mốc` : (rows[0].label || (rows[0].date ? fmtFullDate(rows[0].date) : 'Chưa có mốc'));
+  const shortDate = (iso) => { const d = parseISO(iso); return d.getDate() + '/' + (d.getMonth() + 1); };
+  const summary = [...rows].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'))
+    .map((m) => m.date ? shortDate(m.date) + (m.label ? ': ' + m.label : '') : m.label)
+    .filter(Boolean).join(', ') || 'Chưa có mốc';
 
   return (
     <div className="info-field info-date" ref={ref}>
       <span className="info-ic"><IconCalendar size={14} /></span>
-      <button className="info-datebtn" onClick={() => setOpen((o) => !o)}>Key dates: {summary}</button>
+      <button className="info-datebtn" title={summary} onClick={() => setOpen((o) => !o)}>Key dates: {summary}</button>
       {open && (
         <div className="pop kd-pop" onClick={(e) => e.stopPropagation()}>
           <div className="ev-datelbl">Key dates</div>
@@ -341,8 +345,19 @@ function KeyDatesField({ event, onUpdateEvent }) {
   );
 }
 
+// Phase suy ra từ ngày bài đăng so với khoảng ngày project — bài chưa có ngày
+// không hiện ở đây (đang chờ ở cột "Chưa có ngày" bên dưới).
+function postPhase(p, event) {
+  if (!p.date) return null;
+  const start = event.date, end = event.endDate || event.date;
+  if (start && p.date < start) return 'pre';
+  if (end && p.date > end) return 'post';
+  return 'during';
+}
+
 function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onEditEvent, onUpdateEvent, onSetPhase, past, onOpenPost, onTogglePosted, onUpdatePost, onNewPost, onCreateChannel, onImportPosts }) {
   const prep = tasks.filter((t) => t.tagIds.includes(event.id));
+  const myPosts = (posts || []).filter((p) => p.eventId === event.id);
   const done = prep.filter((t) => t.done);
   const total = prep.length;
   const pct = total ? Math.round((done.length / total) * 100) : 0;
@@ -409,7 +424,8 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
           <textarea className="event-desc" value={event.desc || ''} rows={2}
                     placeholder="Mô tả / mục tiêu của sự kiện — để cả team cùng nắm…"
                     onChange={(e) => onUpdateEvent(event.id, { desc: e.target.value })} />
-          <div className="event-info-grid">
+        </div>
+        <div className="event-info-grid">
             <div className="info-field info-date" ref={dateRef}>
               <span className="info-ic"><IconCalendar size={14} /></span>
               <button className="info-datebtn" onClick={() => setDateOpen((o) => !o)}>
@@ -436,7 +452,6 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
             <KeyDatesField event={event} onUpdateEvent={onUpdateEvent} />
             <InfoField icon={<IconPin size={14} />} value={event.venue} placeholder="Địa điểm" onChange={(v) => onUpdateEvent(event.id, { venue: v })} />
             <InfoField icon={<IconLink size={14} />} value={event.docLink} placeholder="Link tài liệu (Drive/Docs)" onChange={(v) => onUpdateEvent(event.id, { docLink: v })} type="url" />
-          </div>
         </div>
       </div>
 
@@ -450,14 +465,15 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
         {PHASES.map(([ph, label]) => {
           const list = prep.filter((t) => (t.phase || 'pre') === ph);
           const items = [...list.filter((t) => !t.done), ...list.filter((t) => t.done)];
+          const postItems = myPosts.filter((p) => postPhase(p, event) === ph);
           return (
             <div key={ph} className={'phase' + (dropPhase === ph ? ' dropping' : '')}
                  onDragOver={(e) => { if (dragId) { e.preventDefault(); if (dropPhase !== ph) setDropPhase(ph); } }}
                  onDragLeave={(e) => { if (e.currentTarget === e.target) setDropPhase(null); }}
                  onDrop={(e) => { e.preventDefault(); if (dragId) onSetPhase(dragId, ph); setDragId(null); setDropPhase(null); }}>
-              <div className="phase-h"><span className="phase-dot" /> {label} <span className="phase-count">{items.length}</span></div>
+              <div className="phase-h"><span className="phase-dot" /> {label} <span className="phase-count">{items.length + postItems.length}</span></div>
               <div className="phase-tasks">
-                {items.length === 0 && <div className="phase-empty">Kéo việc vào đây</div>}
+                {items.length === 0 && postItems.length === 0 && <div className="phase-empty">Kéo việc vào đây</div>}
                 {items.map((t) => {
                   const owner = members.find((m) => m.id === t.owner) || members[0];
                   return (
@@ -470,6 +486,19 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
                       <span className="avatar xs" style={{ background: owner.color }} title={owner.name}>{owner.icon || owner.name.charAt(0)}</span>
                       <button className="ev-title" onClick={() => onOpen(t)}>{t.title}</button>
                       {t.deadline && <span className={'due' + (isOverdue(t.deadline) && !t.done ? ' over' : '')}><IconCalendar size={12} /> {relDue(t.deadline)}</span>}
+                    </div>
+                  );
+                })}
+                {postItems.map((p) => {
+                  const pic = members.find((m) => m.id === p.pic) || members[0];
+                  return (
+                    <div key={'post-' + p.id} className={'ev-row ev-row-post' + (p.posted ? ' done' : '')}>
+                      <button className="card-check sm" style={{ '--accent': pic.color }} onClick={(e) => { e.stopPropagation(); onTogglePosted(p.id, e); }} aria-label="Đã đăng">
+                        {p.posted && <IconCheck size={12} sw={2.8} />}
+                      </button>
+                      <span className="avatar xs" style={{ background: pic.color }} title={pic.name}>{pic.icon || pic.name.charAt(0)}</span>
+                      <button className="ev-title" onClick={() => onOpenPost(p)}>{p.title}</button>
+                      <span className="due"><IconCalendar size={12} /> {relDue(p.date)}</span>
                     </div>
                   );
                 })}

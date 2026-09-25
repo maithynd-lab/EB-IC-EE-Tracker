@@ -79,6 +79,8 @@
   .card.done{opacity:.62;background:#FAFAF9;box-shadow:none}
   .card.done:hover{opacity:.85}
   .card.done .card-title{text-decoration:line-through;color:var(--muted);text-decoration-thickness:1.5px}
+  .card-post{border-style:dashed}
+  .card-post .card-title{font-style:italic}
   .card.done .tag{filter:grayscale(.55) opacity(.85)}
 
   .card-check{flex-shrink:0;width:21px;height:21px;margin-top:1px;border-radius:7px;
@@ -410,6 +412,8 @@
   .event-tasks{padding:8px 14px 4px;display:flex;flex-direction:column;gap:1px}
   .ev-row{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:9px;transition:.12s}
   .ev-row:hover{background:rgba(20,22,30,.04)}
+  .ev-row-post{background:rgba(20,22,30,.02)}
+  .ev-row-post .ev-title{font-style:italic}
   .card-check.sm{width:19px;height:19px;border-radius:6px;margin-top:0}
   .ev-title{flex:1;min-width:0;border:0;background:transparent;text-align:left;font:inherit;font-size:13.5px;
     font-weight:600;color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0}
@@ -461,7 +465,8 @@
   .tagm-add-row{display:flex;align-items:center;gap:9px}
 
   /* ── event dashboard ── */
-  .event-dash{display:flex;gap:16px;padding:14px 18px 4px}
+  .event-dash{display:flex;gap:16px;padding:14px 18px 4px;flex-wrap:wrap}
+  @media (max-width:640px){.event-dash .event-info,.event-dash .event-info-grid{flex-basis:100%}}
   .event-icon-wrap{position:relative;flex-shrink:0}
   .event-icon-tile{position:relative;width:112px;height:112px;border-radius:18px;cursor:pointer;
     display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);
@@ -551,14 +556,14 @@
   .event-desc{width:100%;border:1px solid var(--line);border-radius:11px;padding:9px 11px;font:inherit;
     font-size:13px;font-weight:500;color:var(--ink);background:#FBFBFA;resize:none;outline:none;line-height:1.45}
   .event-desc:focus{border-color:var(--accent);background:#fff}
-  .event-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .event-info-grid{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
   .info-field{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;
     padding:0 10px;background:#FBFBFA;height:34px}
   .info-field:focus-within{border-color:var(--accent);background:#fff}
   .info-ic{color:var(--accent);display:flex;flex-shrink:0}
   .info-field input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink);outline:none}
   .info-field input::placeholder{color:var(--muted);font-weight:500}
-  .info-date{position:relative;grid-column:1/-1}
+  .info-date{position:relative}
   .info-datebtn{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:600;
     color:var(--ink);text-align:left;cursor:pointer;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .info-date .ev-datepop{top:calc(100% + 6px)}

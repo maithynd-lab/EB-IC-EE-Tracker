@@ -231,6 +231,14 @@ function inScope(t, scope) {
   const r = weekRange(today);
   return t.done ? inRange(t.completedAt, r.start, r.end) : (!!t.deadline && t.deadline <= r.end);
 }
+// Cùng logic Hôm nay/Tuần này cho bài đăng (posted thay done, date thay deadline).
+function postInScope(p, scope) {
+  if (scope === 'all') return true;
+  const today = todayISO();
+  if (scope === 'today') return p.posted ? p.date === today : (!!p.date && p.date <= today);
+  const r = weekRange(today);
+  return p.posted ? inRange(p.date, r.start, r.end) : (!!p.date && p.date <= r.end);
+}
 
 // ── TaskCard ────────────────────────────────────────────────────────────
 function TaskCard({ task, tags, accent, onToggle, onOpen, onDragStart, onDragEnd, dragging }) {
@@ -325,8 +333,8 @@ function DoneListModal({ member, tasks, tags, onToggle, onOpen, onClose }) {
 }
 
 // ── Column ──────────────────────────────────────────────────────────────
-function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpen, onQuickAdd, onAddClick, onCustomize, onOpenWeek, onShowAllDone,
-                  drag, setDrag, dropInfo, setDropInfo, onDrop }) {
+function Column({ member, name, color, tasks, tags, sort, scope, posts, onToggle, onOpen, onQuickAdd, onAddClick, onCustomize, onOpenWeek, onShowAllDone,
+                  drag, setDrag, dropInfo, setDropInfo, onDrop, onOpenPost, onTogglePosted }) {
   const [quick, setQuick] = React.useState('');
   const [cust, setCust] = React.useState(false);
   const custRef = React.useRef(null);
@@ -343,6 +351,8 @@ function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpe
   const active = mine.filter((t) => !t.done).sort(cmp);
   const doneAll = mine.filter((t) => t.done)
     .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
+  const myPosts = (posts || []).filter((p) => p.pic === member.id && postInScope(p, scope))
+    .sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0));
   const DONE_PREVIEW = 3;
   const doneShown = doneAll.slice(0, DONE_PREVIEW);
   const doneHidden = doneAll.length - doneShown.length;
@@ -415,6 +425,24 @@ function Column({ member, name, color, tasks, tags, sort, scope, onToggle, onOpe
 
         {active.length === 0 && !showPlaceholder && (
           <div className="col-empty">Chưa có task nào đang làm</div>
+        )}
+
+        {myPosts.length > 0 && (
+          <>
+            <div className="done-sep"><span>Content · {myPosts.length}</span></div>
+            {myPosts.map((p) => (
+              <div key={p.id} className={'card card-post' + (p.posted ? ' done' : '')} onClick={() => onOpenPost(p)}>
+                <button className="card-check" aria-label="Đã đăng" style={{ '--accent': color }}
+                        onClick={(e) => { e.stopPropagation(); onTogglePosted(p.id, e); }}>
+                  {p.posted && <IconCheck size={14} sw={2.6} />}
+                </button>
+                <div className="card-main">
+                  <div className="card-title">{p.title || 'Chưa đặt tên'}</div>
+                  {p.date && <div className="card-foot"><span className="due"><IconCalendar size={13} /> {relDue(p.date)}</span></div>}
+                </div>
+              </div>
+            ))}
+          </>
         )}
 
         {doneAll.length > 0 && (
@@ -873,10 +901,11 @@ function App() {
           <div className="board">
             {members.map((m) => (
               <Column key={m.id} member={m} name={m.name} color={m.color}
-                      tasks={tasks} tags={tags} sort={sort} scope={taskScope}
+                      tasks={tasks} tags={tags} sort={sort} scope={taskScope} posts={posts}
                       onToggle={toggle} onOpen={openEdit} onQuickAdd={quickAdd} onAddClick={openNew} onCustomize={customizeMember}
                       onOpenWeek={(id) => { setPlannerRef(todayISO()); setWeekFor(id); }}
                       onShowAllDone={(id) => setDoneModalFor(id)}
+                      onOpenPost={openEditPost} onTogglePosted={togglePosted}
                       drag={drag} setDrag={setDrag} dropInfo={dropInfo} setDropInfo={setDropInfo} onDrop={doDrop} />
             ))}
           </div>
