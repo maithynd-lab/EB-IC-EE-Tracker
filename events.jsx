@@ -109,7 +109,7 @@ function parseFlexDate(s) {
 
 function BulkImportPanel({ event, members, channels, onCreateChannel, onImportPosts, onClose }) {
   const [raw, setRaw] = React.useState('');
-  const [hasHeader, setHasHeader] = React.useState(true);
+  const [hasHeader, setHasHeader] = React.useState(false);
   const lines = raw.split('\n').map((l) => l.replace(/\r$/, '')).filter((l) => l.trim().length > 0);
   const parsedRows = lines.map((l) => l.split('\t'));
   const colCount = parsedRows.reduce((n, r) => Math.max(n, r.length), 0);
@@ -240,13 +240,13 @@ function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, o
     <div className="pcc-wrap">
       <div className="pcc-cal">
         {weekStarts.map((wk) => {
-          const days = []; for (let i = 0; i < 7; i++) days.push(addDaysISO(wk, i));
+          const days = []; for (let i = 0; i < 5; i++) days.push(addDaysISO(wk, i));
           return (
             <div className="pcc-week" key={wk}>
               {days.map((iso, i) => {
                 const dt = parseISO(iso);
                 return (
-                  <div key={iso} className={'pcc-day' + ((i === 5 || i === 6) ? ' we' : '') + (iso === today ? ' today' : '') + (iso === eventDay ? ' event' : '') + (dropKey === iso ? ' dropping' : '')} {...dropProps(iso)}>
+                  <div key={iso} className={'pcc-day' + (iso === today ? ' today' : '') + (iso === eventDay ? ' event' : '') + (dropKey === iso ? ' dropping' : '')} {...dropProps(iso)}>
                     <div className="pcc-day-h"><span className="pcc-day-dow">{PCC_DOW[i]}</span><span className="pcc-day-num">{dt.getDate()}/{dt.getMonth() + 1}</span></div>
                     <div className="pcc-day-body">
                       {(byDay[iso] || []).length === 0 && <div className="pcc-day-empty">Kéo content vào đây</div>}

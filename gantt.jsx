@@ -354,8 +354,8 @@ function ProjectGantt({ range, tasks, tags, members, onOpen, onNewProject, onNew
                               if (pl) {
                                 return (
                                   <button className={'gt-owner' + (t.done ? ' done' : '') + (overdue ? ' over' : '')}
-                                          style={{ left: pl.left + '%', '--c': m.color }}
-                                          title={`${t.title} · ${m.name} · deadline ${t.deadline}`}
+                                          style={{ left: (pl.left + pl.width / 2) + '%', '--c': m.color }}
+                                          data-tip={`${t.title} · ${m.name} · deadline ${t.deadline}`}
                                           onClick={() => onOpen && onOpen(t)}>
                                     <i style={{ background: m.color }}>{m.icon || m.name.charAt(0)}</i>
                                   </button>
