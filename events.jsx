@@ -187,10 +187,11 @@ function BulkImportPanel({ event, members, channels, onCreateChannel, onImportPo
 function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, onTogglePosted, onUpdatePost, onNewPost, onCreateChannel, onImportPosts }) {
   const [showImport, setShowImport] = React.useState(false);
   const myPosts = (posts || []).filter((p) => p.eventId === event.id);
-  const eventDay = event.endDate || event.date || todayISO();
   const today = todayISO();
+  const msByDate = {};
+  tagMilestones(event).forEach((ms) => { if (ms.date) (msByDate[ms.date] = msByDate[ms.date] || []).push(ms); });
 
-  const allDates = [event.date, event.endDate, ...myPosts.map((p) => p.date)].filter(Boolean);
+  const allDates = [event.date, event.endDate, ...Object.keys(msByDate), ...myPosts.map((p) => p.date)].filter(Boolean);
   const anchorStart = allDates.length ? allDates.reduce((a, b) => a < b ? a : b) : today;
   const anchorEnd = allDates.length ? allDates.reduce((a, b) => a > b ? a : b) : today;
   const rangeStart = weekRange(anchorStart).start;
@@ -247,8 +248,11 @@ function ProjectContentCalendar({ event, posts, channels, members, onOpenPost, o
               {days.map((iso, i) => {
                 const dt = parseISO(iso);
                 return (
-                  <div key={iso} className={'pcc-day' + (iso === today ? ' today' : '') + (iso === eventDay ? ' event' : '') + (dropKey === iso ? ' dropping' : '')} {...dropProps(iso)}>
-                    <div className="pcc-day-h"><span className="pcc-day-dow">{PCC_DOW[i]}</span><span className="pcc-day-num">{dt.getDate()}/{dt.getMonth() + 1}</span></div>
+                  <div key={iso} className={'pcc-day' + (iso === today ? ' today' : '') + (msByDate[iso] ? ' keydate' : '') + (dropKey === iso ? ' dropping' : '')} {...dropProps(iso)}>
+                    <div className="pcc-day-h">
+                      <span className="pcc-day-dow">{PCC_DOW[i]}</span><span className="pcc-day-num">{dt.getDate()}/{dt.getMonth() + 1}</span>
+                      {msByDate[iso] && <span className="pcc-day-kd" title={msByDate[iso].map((m) => m.label).filter(Boolean).join(', ') || 'Key date'}>★ {msByDate[iso].map((m) => m.label).filter(Boolean).join(', ') || 'Key date'}</span>}
+                    </div>
                     <div className="pcc-day-body">
                       {(byDay[iso] || []).length === 0 && <div className="pcc-day-empty">Kéo content vào đây</div>}
                       {(byDay[iso] || []).map(PostCard)}

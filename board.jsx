@@ -355,10 +355,9 @@ function Column({ member, name, color, tasks, tags, sort, scope, posts, onToggle
   const myPostsAll = (posts || []).filter((p) => p.pic === member.id && postInScope(p, scope));
   const activePosts = myPostsAll.filter((p) => !p.posted);
   const donePosts = myPostsAll.filter((p) => p.posted);
-  const DONE_PREVIEW = 3;
-  const doneShown = doneAll.slice(0, DONE_PREVIEW);
-  const doneHidden = doneAll.length - doneShown.length;
-  const donePostsShown = showAllPosts ? donePosts : donePosts.slice(0, DONE_PREVIEW);
+  const doneShown = [];
+  const doneHidden = doneAll.length;
+  const donePostsShown = showAllPosts ? donePosts : [];
   const donePostsHidden = donePosts.length - donePostsShown.length;
 
   const computeIndex = (clientY) => {
@@ -464,7 +463,7 @@ function Column({ member, name, color, tasks, tags, sort, scope, posts, onToggle
                       style={{ border: 0, background: 'transparent', color: 'var(--muted)',
                                font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                                padding: '8px 4px 2px', textAlign: 'left', letterSpacing: '.01em' }}>
-                + Xem tất cả ({donePosts.length})
+                Xem các bài đã đăng ({donePosts.length})
               </button>
             )}
           </>
@@ -485,7 +484,7 @@ function Column({ member, name, color, tasks, tags, sort, scope, posts, onToggle
                   style={{ border: 0, background: 'transparent', color: 'var(--muted)',
                            font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                            padding: '8px 4px 2px', textAlign: 'left', letterSpacing: '.01em' }}>
-            + Xem tất cả ({doneAll.length})
+            Xem các task đã xong ({doneAll.length})
           </button>
         )}
       </div>
