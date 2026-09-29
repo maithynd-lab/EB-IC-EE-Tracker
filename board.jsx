@@ -337,6 +337,7 @@ function Column({ member, name, color, tasks, tags, sort, scope, posts, onToggle
                   drag, setDrag, dropInfo, setDropInfo, onDrop, onOpenPost, onTogglePosted }) {
   const [quick, setQuick] = React.useState('');
   const [cust, setCust] = React.useState(false);
+  const [showAllPosts, setShowAllPosts] = React.useState(false);
   const custRef = React.useRef(null);
   const listRef = React.useRef(null);
   React.useEffect(() => {
@@ -351,11 +352,14 @@ function Column({ member, name, color, tasks, tags, sort, scope, posts, onToggle
   const active = mine.filter((t) => !t.done).sort(cmp);
   const doneAll = mine.filter((t) => t.done)
     .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
-  const myPosts = (posts || []).filter((p) => p.pic === member.id && postInScope(p, scope))
-    .sort((a, b) => (a.posted ? 1 : 0) - (b.posted ? 1 : 0));
+  const myPostsAll = (posts || []).filter((p) => p.pic === member.id && postInScope(p, scope));
+  const activePosts = myPostsAll.filter((p) => !p.posted);
+  const donePosts = myPostsAll.filter((p) => p.posted);
   const DONE_PREVIEW = 3;
   const doneShown = doneAll.slice(0, DONE_PREVIEW);
   const doneHidden = doneAll.length - doneShown.length;
+  const donePostsShown = showAllPosts ? donePosts : donePosts.slice(0, DONE_PREVIEW);
+  const donePostsHidden = donePosts.length - donePostsShown.length;
 
   const computeIndex = (clientY) => {
     const cards = [...listRef.current.querySelectorAll('.card:not(.done):not(.dragging)')];
@@ -427,11 +431,11 @@ function Column({ member, name, color, tasks, tags, sort, scope, posts, onToggle
           <div className="col-empty">Chưa có task nào đang làm</div>
         )}
 
-        {myPosts.length > 0 && (
+        {myPostsAll.length > 0 && (
           <>
-            <div className="done-sep"><span>Content · {myPosts.length}</span></div>
-            {myPosts.map((p) => (
-              <div key={p.id} className={'card card-post' + (p.posted ? ' done' : '')} onClick={() => onOpenPost(p)}>
+            <div className="done-sep"><span>Content · {myPostsAll.length}</span></div>
+            {activePosts.map((p) => (
+              <div key={p.id} className="card card-post" onClick={() => onOpenPost(p)}>
                 <button className="card-check" aria-label="Đã đăng" style={{ '--accent': color }}
                         onClick={(e) => { e.stopPropagation(); onTogglePosted(p.id, e); }}>
                   {p.posted && <IconCheck size={14} sw={2.6} />}
@@ -442,6 +446,27 @@ function Column({ member, name, color, tasks, tags, sort, scope, posts, onToggle
                 </div>
               </div>
             ))}
+            {donePostsShown.map((p) => (
+              <div key={p.id} className="card card-post done" onClick={() => onOpenPost(p)}>
+                <button className="card-check" aria-label="Đã đăng" style={{ '--accent': color }}
+                        onClick={(e) => { e.stopPropagation(); onTogglePosted(p.id, e); }}>
+                  {p.posted && <IconCheck size={14} sw={2.6} />}
+                </button>
+                <div className="card-main">
+                  <div className="card-title">{p.title || 'Chưa đặt tên'}</div>
+                  {p.date && <div className="card-foot"><span className="due"><IconCalendar size={13} /> {relDue(p.date)}</span></div>}
+                </div>
+              </div>
+            ))}
+            {donePostsHidden > 0 && (
+              <button className="done-more-btn"
+                      onClick={() => setShowAllPosts(true)}
+                      style={{ border: 0, background: 'transparent', color: 'var(--muted)',
+                               font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                               padding: '8px 4px 2px', textAlign: 'left', letterSpacing: '.01em' }}>
+                + Xem tất cả ({donePosts.length})
+              </button>
+            )}
           </>
         )}
 
