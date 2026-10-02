@@ -93,6 +93,7 @@ function useLocal(key, initial) {
             ...p,
             tagIds: Array.isArray(p.tagIds) ? p.tagIds : [],
             posted: p.posted !== undefined ? p.posted : false,
+            phase: p.phase !== undefined ? p.phase : null,
           }));
         }
 
@@ -805,11 +806,7 @@ function App() {
     setEditing({ id: uid(), owner, title: '', note: '', tagIds: [eventId], priority: null, deadline: null, done: false, completedAt: null, phase: phase || 'pre', order: max + 1, isNew: true });
   };
 
-  const saveTask = (draft) => {
-    const { isNew, ...clean } = draft;
-    setTasks((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? clean : x));
-    setEditing(null);
-  };
+  const createTask = (clean) => setTasks((prev) => [...prev, clean]);
   const deleteTask = (id) => { setTasks((prev) => prev.filter((x) => x.id !== id)); setEditing(null); };
   const updateTask = (id, patch) => setTasks((prev) => prev.map((x) => x.id === id ? { ...x, ...patch } : x));
 
@@ -838,7 +835,8 @@ function App() {
   };
   const openNewPost = (date, eventId) => setEditingPost({ id: uid(), date, title: '', channelIds: [], pic: members[0].id, url: '', note: '', eventId: eventId || null, posted: false, isNew: true });
   const openEditPost = (p) => setEditingPost({ channelIds: [], url: '', note: '', ...p, isNew: false });
-  const savePost = (draft) => { const { isNew, ...clean } = draft; setPosts((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? clean : x)); setEditingPost(null); };
+  const createPost = (clean) => setPosts((prev) => [...prev, clean]);
+  const setPostPhase = (postId, phase) => setPosts((prev) => prev.map((x) => x.id === postId ? { ...x, phase } : x));
   const importPosts = (rows) => setPosts((prev) => [...prev, ...rows.map((r) => ({ id: uid(), date: r.date || null, title: r.title || '', channelIds: r.channelIds || [], pic: r.pic || members[0].id, url: '', note: r.note || '', eventId: r.eventId || null, posted: false }))]);
   const updatePost = (id, patch) => setPosts((prev) => prev.map((x) => x.id === id ? { ...x, ...patch } : x));
   const deletePost = (id) => { setPosts((prev) => prev.filter((x) => x.id !== id)); setEditingPost(null); };
@@ -846,7 +844,7 @@ function App() {
   const createEventTag = (name, color) => { const ev = { id: uid(), name, color, date: (editingPost && editingPost.date) || todayISO(), icon: '📅' }; setTags((prev) => [...prev, ev]); return ev; };
   const openNewEvent = (date) => setEditingEvent({ id: uid(), name: '', color: '#8B5CF6', date: date || todayISO(), icon: DEFAULT_EVENT_ICON, startTime: '', endTime: '', isNew: true });
   const openEditEvent = (ev) => setEditingEvent({ ...ev, isNew: false });
-  const saveEvent = (draft) => { const { isNew, ...clean } = draft; setTags((prev) => isNew ? [...prev, clean] : prev.map((x) => x.id === clean.id ? { ...x, ...clean } : x)); setEditingEvent(null); };
+  const createEventRecord = (clean) => setTags((prev) => [...prev, clean]);
   const deleteEventTag = (id) => { deleteTag(id); setEditingEvent(null); };
   const addMilestone = (tagId, date) => setTags((prev) => prev.map((t) => {
     if (t.id !== tagId) return t;
@@ -936,7 +934,7 @@ function App() {
           <EventsSection events={events} tasks={tasks} members={members} posts={posts} channels={channels}
                          onToggle={toggle} onOpen={openEdit} onAddPrep={addPrep} onAddTask={openNewForEvent}
                          onCreateEvent={() => openNewEvent(todayISO())} onEditEvent={openEditEvent}
-                         onUpdateEvent={updateTag} onSetPhase={setPhase}
+                         onUpdateEvent={updateTag} onSetPhase={setPhase} onSetPostPhase={setPostPhase}
                          onOpenPost={openEditPost} onTogglePosted={togglePosted} onUpdatePost={updatePost} onNewPost={openNewPost}
                          onCreateChannel={createChannel} onImportPosts={importPosts} />
           <CommCalendar posts={posts} channels={channels} members={members} events={events} tags={tags} holidays={SEED_HOLIDAYS}
@@ -970,15 +968,16 @@ function App() {
 
       <TaskEditor task={editing} member={editing ? memberOf(editing.owner) : members[0]}
                   members={members} allTags={tags} onCreateTag={createTag}
-                  onSave={saveTask} onDelete={deleteTask} onClose={() => setEditing(null)} />
+                  onCreate={createTask} onUpdate={updateTask} onDelete={deleteTask} onClose={() => setEditing(null)} />
 
       <TagManager open={showTags} tags={tags} tasks={tasks}
                   onUpdate={updateTag} onDelete={deleteTag} onAdd={addTag} onClose={() => setShowTags(false)} />
 
       <PostEditor post={editingPost} members={members} channels={channels} events={events}
-                  onCreateChannel={createChannel} onCreateEvent={createEventTag} onSave={savePost} onDelete={deletePost} onClose={() => setEditingPost(null)} />
+                  onCreateChannel={createChannel} onCreateEvent={createEventTag}
+                  onCreate={createPost} onUpdate={updatePost} onDelete={deletePost} onClose={() => setEditingPost(null)} />
 
-      <EventEditor event={editingEvent} onSave={saveEvent} onDelete={deleteEventTag} onClose={() => setEditingEvent(null)} />
+      <EventEditor event={editingEvent} onCreate={createEventRecord} onUpdate={updateTag} onDelete={deleteEventTag} onClose={() => setEditingEvent(null)} />
 
       <DoneListModal member={doneModalFor ? memberOf(doneModalFor) : null}
                      tasks={tasks} tags={tags}

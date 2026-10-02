@@ -34,6 +34,95 @@ function tagStyle(color) {
   };
 }
 
+// ── useDraftAutosave ─────────────────────────────────────────────────────
+// Dùng chung cho modal sửa task/sự kiện/bài đăng: gõ tới đâu lưu tới đó
+// (debounce), bản ghi mới chỉ thật sự tạo khi readyCheck() pass (vd có tên).
+function useDraftAutosave(entity, { onCreate, onUpdate, readyCheck, debounceMs }) {
+  const [draft, setDraft] = React.useState(entity);
+  const [saveState, setSaveState] = React.useState('idle'); // idle|saving|saved|error
+  const draftRef = React.useRef(entity);
+  const pendingRef = React.useRef({});
+  const timerRef = React.useRef(null);
+  const createdRef = React.useRef(false);
+
+  const flush = React.useCallback(() => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    const patch = pendingRef.current;
+    pendingRef.current = {};
+    if (!draftRef.current || draftRef.current.isNew || Object.keys(patch).length === 0) return;
+    setSaveState('saving');
+    try {
+      onUpdate(draftRef.current.id, patch);
+      setSaveState('saved');
+    } catch (err) {
+      setSaveState('error');
+    }
+  }, [onUpdate]);
+
+  React.useEffect(() => {
+    flush(); // chốt thay đổi còn treo của entity trước, rồi mới reset cho entity mới
+    setDraft(entity);
+    draftRef.current = entity;
+    pendingRef.current = {};
+    createdRef.current = false;
+    setSaveState('idle');
+  }, [entity]);
+
+  const set = React.useCallback((patch) => {
+    const next = { ...draftRef.current, ...patch };
+    draftRef.current = next;
+    setDraft(next);
+
+    if (next.isNew) {
+      if (!createdRef.current && (!readyCheck || readyCheck(next))) {
+        createdRef.current = true;
+        const { isNew, ...clean } = next;
+        onCreate(clean);
+        draftRef.current = { ...next, isNew: false };
+        setDraft(draftRef.current);
+        setSaveState('saved');
+      }
+      return;
+    }
+    pendingRef.current = { ...pendingRef.current, ...patch };
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(flush, debounceMs || 500);
+  }, [flush, onCreate, readyCheck]);
+
+  return { draft, set, flush, saveState };
+}
+
+function SaveIndicator({ state }) {
+  if (state === 'saving') return <span className="save-ind saving">Đang lưu…</span>;
+  if (state === 'saved') return <span className="save-ind saved">Đã lưu <IconCheck size={11} sw={3} /></span>;
+  if (state === 'error') return <span className="save-ind error">Lỗi lưu, thử lại</span>;
+  return <span className="save-ind" />;
+}
+
+// Dropdown chọn giai đoạn pre/during/post cho task hoặc content; "Tự động"
+// (value=null) để hệ thống tự suy ra từ ngày so với khoảng ngày sự kiện.
+function PhaseField({ value, onChange }) {
+  return (
+    <div className="field">
+      <div className="label"><IconFlag size={14} /> Giai đoạn</div>
+      <select className="sel" value={value || 'auto'} onChange={(e) => onChange(e.target.value === 'auto' ? null : e.target.value)}>
+        <option value="auto">Tự động (theo ngày)</option>
+        {PHASES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+      </select>
+    </div>
+  );
+}
+
+// Esc để đóng modal — dùng chung cho mọi modal (chỉ gắn khi đang mở).
+function useEscClose(active, onClose) {
+  React.useEffect(() => {
+    if (!active) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [active, onClose]);
+}
+
 const PRIORITIES = [
   { key: 'high', label: 'High', color: '#EF4444' },
   { key: 'medium', label: 'Medium', color: '#F59E0B' },
@@ -127,27 +216,30 @@ function TagPicker({ allTags, value, onChange, onCreateTag }) {
 }
 
 // ── TaskEditor modal ───────────────────────────────────────────────────────
-// props: task (draft or null=closed), member, allTags, onCreateTag, onSave, onDelete, onClose
-function TaskEditor({ task, member, members, allTags, onCreateTag, onSave, onDelete, onClose }) {
-  const [draft, setDraft] = React.useState(task);
+// props: task (draft or null=closed), member, allTags, onCreateTag, onCreate, onUpdate, onDelete, onClose
+// Autosave: mỗi thay đổi ghi lên Firebase (debounce ~500ms, flush khi đóng).
+// Task mới chỉ thật sự tạo khi đã gõ tên, sau đó chuyển qua autosave như task cũ.
+function TaskEditor({ task, member, members, allTags, onCreateTag, onCreate, onUpdate, onDelete, onClose }) {
+  const { draft, set, flush, saveState } = useDraftAutosave(task, {
+    onCreate, onUpdate, readyCheck: (d) => d.title.trim().length > 0, debounceMs: 500,
+  });
   const [calOpen, setCalOpen] = React.useState(false);
-  React.useEffect(() => { setDraft(task); setCalOpen(false); }, [task]);
+  React.useEffect(() => { setCalOpen(false); }, [task]);
+  const close = () => { flush(); onClose(); };
+  useEscClose(!!task, close);
   if (!task || !draft) return null;
   const cur = (members && members.find((m) => m.id === draft.owner)) || member;
 
-  const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
-  const canSave = draft.title.trim().length > 0;
-  const save = () => { if (canSave) onSave(draft); };
-
   return (
-    <div className="scrim" onMouseDown={onClose}>
+    <div className="scrim" onMouseDown={close}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()} style={{ '--accent': cur.color }}>
         <div className="modal-head">
           <span className="modal-owner">
             <span className="avatar sm" style={{ background: cur.color }}>{cur.icon || cur.name.charAt(0)}</span>
             {task.isNew ? 'Task mới' : 'Sửa task'} · {cur.name}
           </span>
-          <button className="iconbtn" onClick={onClose} aria-label="Đóng"><IconClose /></button>
+          <SaveIndicator state={saveState} />
+          <button className="iconbtn" onClick={close} aria-label="Đóng"><IconClose /></button>
         </div>
 
         <div className="modal-body">
@@ -157,7 +249,7 @@ function TaskEditor({ task, member, members, allTags, onCreateTag, onSave, onDel
             value={draft.title}
             placeholder="Tên task…"
             onChange={(e) => set({ title: e.target.value })}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) close(); }}
           />
 
           <div className="field">
@@ -214,15 +306,16 @@ function TaskEditor({ task, member, members, allTags, onCreateTag, onSave, onDel
                       placeholder="Mô tả ngắn (tuỳ chọn)…"
                       onChange={(e) => set({ note: e.target.value })} />
           </div>
+
+          {draft.tagIds.length > 0 && <PhaseField value={draft.phase} onChange={(v) => set({ phase: v })} />}
         </div>
 
         <div className="modal-foot">
           {!task.isNew
-            ? <button className="btn danger-ghost" onClick={() => onDelete(draft.id)}><IconTrash size={16} /> Xoá</button>
+            ? <button className="btn danger-ghost" onClick={() => { if (window.confirm('Xoá task này?')) onDelete(draft.id); }}><IconTrash size={16} /> Xoá</button>
             : <span />}
           <div className="foot-right">
-            <button className="btn ghost" onClick={onClose}>Huỷ</button>
-            <button className="btn primary" disabled={!canSave} onClick={save}>{task.isNew ? 'Thêm task' : 'Lưu'}</button>
+            <button className="btn primary" onClick={close}>{task.isNew ? 'Xong' : 'Đóng'}</button>
           </div>
         </div>
       </div>
@@ -230,4 +323,4 @@ function TaskEditor({ task, member, members, allTags, onCreateTag, onSave, onDel
   );
 }
 
-Object.assign(window, { TAG_PALETTE, tagStyle, PRIORITIES, prioConf, TagPicker, TaskEditor });
+Object.assign(window, { TAG_PALETTE, tagStyle, PRIORITIES, prioConf, TagPicker, TaskEditor, useDraftAutosave, SaveIndicator, PhaseField, useEscClose });

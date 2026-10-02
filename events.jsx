@@ -349,17 +349,32 @@ function KeyDatesField({ event, onUpdateEvent }) {
   );
 }
 
-// Phase suy ra từ ngày bài đăng so với khoảng ngày project — bài chưa có ngày
-// không hiện ở đây (đang chờ ở cột "Chưa có ngày" bên dưới).
-function postPhase(p, event) {
-  if (!p.date) return null;
+// Phase suy ra từ 1 ngày so với khoảng ngày project — dùng làm giá trị MẶC ĐỊNH
+// khi task/content chưa có phase lưu tay (phase === null/undefined).
+function derivePhaseByDate(iso, event) {
+  if (!iso) return 'pre';
   const start = event.date, end = event.endDate || event.date;
-  if (start && p.date < start) return 'pre';
-  if (end && p.date > end) return 'post';
+  if (start && iso < start) return 'pre';
+  if (end && iso > end) return 'post';
   return 'during';
 }
 
-function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onEditEvent, onUpdateEvent, onSetPhase, past, onOpenPost, onTogglePosted, onUpdatePost, onNewPost, onCreateChannel, onImportPosts }) {
+// Phase của content: field `p.phase` lưu tay thắng tuyệt đối (kéo thả / chọn
+// trong modal); chỉ suy ra từ ngày khi chưa từng đặt tay. Bài chưa có ngày và
+// chưa có phase tay thì không hiện ở đây (đang chờ ở cột "Chưa có ngày").
+function postPhase(p, event) {
+  if (p.phase === 'pre' || p.phase === 'during' || p.phase === 'post') return p.phase;
+  if (!p.date) return null;
+  return derivePhaseByDate(p.date, event);
+}
+
+// Phase của task: cùng nguyên tắc — field lưu tay thắng, mặc định suy từ deadline.
+function taskPhase(t, event) {
+  if (t.phase === 'pre' || t.phase === 'during' || t.phase === 'post') return t.phase;
+  return derivePhaseByDate(t.deadline, event);
+}
+
+function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onEditEvent, onUpdateEvent, onSetPhase, onSetPostPhase, past, onOpenPost, onTogglePosted, onUpdatePost, onNewPost, onCreateChannel, onImportPosts }) {
   const prep = tasks.filter((t) => t.tagIds.includes(event.id));
   const myPosts = (posts || []).filter((p) => p.eventId === event.id);
   const done = prep.filter((t) => t.done);
@@ -367,7 +382,7 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
   const pct = total ? Math.round((done.length / total) * 100) : 0;
   const owners = members.filter((m) => prep.some((t) => t.owner === m.id));
   const defOwner = (owners[0] || members[0]).id;
-  const [dragId, setDragId] = React.useState(null);
+  const [drag, setDrag] = React.useState(null); // { kind: 'task'|'post', id }
   const [dropPhase, setDropPhase] = React.useState(null);
   const [dateOpen, setDateOpen] = React.useState(false);
   const [iconOpen, setIconOpen] = React.useState(false);
@@ -467,23 +482,28 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
 
       <div className="phases">
         {PHASES.map(([ph, label]) => {
-          const list = prep.filter((t) => (t.phase || 'pre') === ph);
+          const list = prep.filter((t) => taskPhase(t, event) === ph);
           const items = [...list.filter((t) => !t.done), ...list.filter((t) => t.done)];
           const postItems = myPosts.filter((p) => postPhase(p, event) === ph);
           return (
             <div key={ph} className={'phase' + (dropPhase === ph ? ' dropping' : '')}
-                 onDragOver={(e) => { if (dragId) { e.preventDefault(); if (dropPhase !== ph) setDropPhase(ph); } }}
+                 onDragOver={(e) => { if (drag) { e.preventDefault(); if (dropPhase !== ph) setDropPhase(ph); } }}
                  onDragLeave={(e) => { if (e.currentTarget === e.target) setDropPhase(null); }}
-                 onDrop={(e) => { e.preventDefault(); if (dragId) onSetPhase(dragId, ph); setDragId(null); setDropPhase(null); }}>
+                 onDrop={(e) => {
+                   e.preventDefault();
+                   if (drag && drag.kind === 'task') onSetPhase(drag.id, ph);
+                   if (drag && drag.kind === 'post') onSetPostPhase(drag.id, ph);
+                   setDrag(null); setDropPhase(null);
+                 }}>
               <div className="phase-h"><span className="phase-dot" /> {label} <span className="phase-count">{items.length + postItems.length}</span></div>
               <div className="phase-tasks">
                 {items.length === 0 && postItems.length === 0 && <div className="phase-empty">Kéo việc vào đây</div>}
                 {items.map((t) => {
                   const owner = members.find((m) => m.id === t.owner) || members[0];
                   return (
-                    <div key={t.id} className={'ev-row' + (t.done ? ' done' : '') + (dragId === t.id ? ' dragging' : '')}
-                         draggable onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragId(t.id); }}
-                         onDragEnd={() => { setDragId(null); setDropPhase(null); }}>
+                    <div key={t.id} className={'ev-row' + (t.done ? ' done' : '') + (drag && drag.kind === 'task' && drag.id === t.id ? ' dragging' : '')}
+                         draggable onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'task', id: t.id }); }}
+                         onDragEnd={() => { setDrag(null); setDropPhase(null); }}>
                       <button className="card-check sm" style={{ '--accent': owner.color }} onClick={(e) => onToggle(t.id, e)} aria-label="Hoàn thành">
                         {t.done && <IconCheck size={12} sw={2.8} />}
                       </button>
@@ -496,7 +516,9 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
                 {postItems.map((p) => {
                   const pic = members.find((m) => m.id === p.pic) || members[0];
                   return (
-                    <div key={'post-' + p.id} className={'ev-row ev-row-post' + (p.posted ? ' done' : '')}>
+                    <div key={'post-' + p.id} className={'ev-row ev-row-post' + (p.posted ? ' done' : '') + (drag && drag.kind === 'post' && drag.id === p.id ? ' dragging' : '')}
+                         draggable onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'post', id: p.id }); }}
+                         onDragEnd={() => { setDrag(null); setDropPhase(null); }}>
                       <button className="card-check sm" style={{ '--accent': pic.color }} onClick={(e) => { e.stopPropagation(); onTogglePosted(p.id, e); }} aria-label="Đã đăng">
                         {p.posted && <IconCheck size={12} sw={2.8} />}
                       </button>
@@ -521,7 +543,7 @@ function EventBlock({ event, tasks, members, posts, channels, onToggle, onOpen, 
 }
 
 // ── EventsSection ────────────────────────────────────────────────────────
-function EventsSection({ events, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase, onOpenPost, onTogglePosted, onUpdatePost, onNewPost, onCreateChannel, onImportPosts }) {
+function EventsSection({ events, tasks, members, posts, channels, onToggle, onOpen, onAddPrep, onAddTask, onCreateEvent, onEditEvent, onUpdateEvent, onSetPhase, onSetPostPhase, onOpenPost, onTogglePosted, onUpdatePost, onNewPost, onCreateChannel, onImportPosts }) {
   const [showPast, setShowPast] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const ql = query.trim().toLowerCase();
@@ -557,7 +579,7 @@ function EventsSection({ events, tasks, members, posts, channels, onToggle, onOp
         {upcoming.map((e) => (
           <EventBlock key={e.id} event={e} tasks={tasks} members={members} posts={posts} channels={channels}
                       onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onAddTask={onAddTask} onEditEvent={onEditEvent}
-                      onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase}
+                      onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase} onSetPostPhase={onSetPostPhase}
                       onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost}
                       onCreateChannel={onCreateChannel} onImportPosts={onImportPosts} />
         ))}
@@ -574,7 +596,7 @@ function EventsSection({ events, tasks, members, posts, channels, onToggle, onOp
               {pastEvents.map((e) => (
                 <EventBlock key={e.id} event={e} tasks={tasks} members={members} posts={posts} channels={channels} past
                             onToggle={onToggle} onOpen={onOpen} onAddPrep={onAddPrep} onAddTask={onAddTask} onEditEvent={onEditEvent}
-                            onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase}
+                            onUpdateEvent={onUpdateEvent} onSetPhase={onSetPhase} onSetPostPhase={onSetPostPhase}
                             onOpenPost={onOpenPost} onTogglePosted={onTogglePosted} onUpdatePost={onUpdatePost} onNewPost={onNewPost}
                             onCreateChannel={onCreateChannel} onImportPosts={onImportPosts} />
               ))}
@@ -665,13 +687,15 @@ function TagManager({ open, tags, tasks, onUpdate, onDelete, onAdd, onClose }) {
 }
 
 // ── EventEditor modal (create / edit an event = a dated tag) ────────────────
-function EventEditor({ event, onSave, onDelete, onClose }) {
-  const [draft, setDraft] = React.useState(event);
+function EventEditor({ event, onCreate, onUpdate, onDelete, onClose }) {
+  const { draft, set, flush, saveState } = useDraftAutosave(event, {
+    onCreate, onUpdate, readyCheck: (d) => (d.name || '').trim().length > 0, debounceMs: 500,
+  });
   const [calOpen, setCalOpen] = React.useState(false);
-  React.useEffect(() => { setDraft(event); setCalOpen(false); }, [event]);
+  React.useEffect(() => { setCalOpen(false); }, [event]);
+  const close = () => { flush(); onClose(); };
+  useEscClose(!!event, close);
   if (!event || !draft) return null;
-  const set = (p) => setDraft((d) => ({ ...d, ...p }));
-  const canSave = (draft.name || '').trim().length > 0;
 
   // Mốc thời gian: mặc định 1 mốc (suy ra từ ngày diễn ra) cho tới khi tự thêm/sửa.
   const msRows = draft.milestones && draft.milestones.length ? draft.milestones : [{ id: 'm0', date: draft.date, label: '' }];
@@ -680,11 +704,12 @@ function EventEditor({ event, onSave, onDelete, onClose }) {
   const updateMilestone = (id, patch) => setMilestones(msRows.map((m) => m.id === id ? { ...m, ...patch } : m));
   const removeMilestone = (id) => setMilestones(msRows.filter((m) => m.id !== id));
   return (
-    <div className="scrim" onMouseDown={onClose}>
+    <div className="scrim" onMouseDown={close}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()} style={{ '--accent': draft.color }}>
         <div className="modal-head">
           <span className="modal-owner"><IconCalendar size={16} /> {event.isNew ? 'Sự kiện mới' : 'Sửa sự kiện'}</span>
-          <button className="iconbtn" onClick={onClose} aria-label="Đóng"><IconClose /></button>
+          <SaveIndicator state={saveState} />
+          <button className="iconbtn" onClick={close} aria-label="Đóng"><IconClose /></button>
         </div>
         <div className="modal-body">
           <div className="ev-ed-top">
@@ -758,12 +783,11 @@ function EventEditor({ event, onSave, onDelete, onClose }) {
           </div>
         </div>
         <div className="modal-foot">
-          {!event.isNew ? <button className="btn danger-ghost" onClick={() => onDelete(draft.id)}><IconTrash size={16} /> Xoá</button> : <span />}
+          {!event.isNew ? <button className="btn danger-ghost" onClick={() => { if (window.confirm('Xoá sự kiện này?')) onDelete(draft.id); }}><IconTrash size={16} /> Xoá</button> : <span />}
           <div className="foot-right">
             <a className="btn ghost" href={gcalUrl({ title: draft.name || 'Sự kiện', date: draft.date, startTime: draft.startTime, endTime: draft.endTime })}
                target="_blank" rel="noopener noreferrer" title="Thêm vào Google Calendar"><IconCalPlus size={16} /> Google Calendar</a>
-            <button className="btn ghost" onClick={onClose}>Huỷ</button>
-            <button className="btn primary" disabled={!canSave} onClick={() => canSave && onSave(draft)}>{event.isNew ? 'Tạo sự kiện' : 'Lưu'}</button>
+            <button className="btn primary" onClick={close}>{event.isNew ? 'Xong' : 'Đóng'}</button>
           </div>
         </div>
       </div>
@@ -771,4 +795,4 @@ function EventEditor({ event, onSave, onDelete, onClose }) {
   );
 }
 
-Object.assign(window, { daysUntil, countdownLabel, fmtFullDate, dBadge, tagMilestones, EventBlock, EventsSection, TagManager, EventEditor, EVENT_ICONS, DEFAULT_EVENT_ICON });
+Object.assign(window, { daysUntil, countdownLabel, fmtFullDate, dBadge, tagMilestones, derivePhaseByDate, taskPhase, postPhase, EventBlock, EventsSection, TagManager, EventEditor, EVENT_ICONS, DEFAULT_EVENT_ICON });

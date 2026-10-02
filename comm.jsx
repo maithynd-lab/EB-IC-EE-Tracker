@@ -120,19 +120,22 @@ function EventPicker({ events, value, onChange, onCreate }) {
   );
 }
 
-function PostEditor({ post, members, channels, events, onCreateChannel, onCreateEvent, onSave, onDelete, onClose }) {
-  const [draft, setDraft] = React.useState(post);
+function PostEditor({ post, members, channels, events, onCreateChannel, onCreateEvent, onCreate, onUpdate, onDelete, onClose }) {
+  const { draft, set, flush, saveState } = useDraftAutosave(post, {
+    onCreate, onUpdate, readyCheck: (d) => d.title.trim().length > 0, debounceMs: 500,
+  });
   const [calOpen, setCalOpen] = React.useState(false);
-  React.useEffect(() => { setDraft(post); setCalOpen(false); }, [post]);
+  React.useEffect(() => { setCalOpen(false); }, [post]);
+  const close = () => { flush(); onClose(); };
+  useEscClose(!!post, close);
   if (!post || !draft) return null;
-  const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
-  const canSave = draft.title.trim().length > 0;
   return (
-    <div className="scrim" onMouseDown={onClose}>
+    <div className="scrim" onMouseDown={close}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()} style={{ '--accent': '#3B82F6' }}>
         <div className="modal-head">
           <span className="modal-owner"><IconCalendar size={16} /> {post.isNew ? 'Bài đăng mới' : 'Sửa bài đăng'}</span>
-          <button className="iconbtn" onClick={onClose} aria-label="Đóng"><IconClose /></button>
+          <SaveIndicator state={saveState} />
+          <button className="iconbtn" onClick={close} aria-label="Đóng"><IconClose /></button>
         </div>
         <div className="modal-body">
           <input className="title-input" autoFocus value={draft.title} placeholder="Tên bài đăng…"
@@ -186,12 +189,13 @@ function PostEditor({ post, members, channels, events, onCreateChannel, onCreate
             <input type="checkbox" checked={draft.posted} onChange={(e) => set({ posted: e.target.checked })} hidden />
             <span>Đã đăng</span>
           </label>
+
+          {draft.eventId && <PhaseField value={draft.phase} onChange={(v) => set({ phase: v })} />}
         </div>
         <div className="modal-foot">
-          {!post.isNew ? <button className="btn danger-ghost" onClick={() => onDelete(draft.id)}><IconTrash size={16} /> Xoá</button> : <span />}
+          {!post.isNew ? <button className="btn danger-ghost" onClick={() => { if (window.confirm('Xoá bài đăng này?')) onDelete(draft.id); }}><IconTrash size={16} /> Xoá</button> : <span />}
           <div className="foot-right">
-            <button className="btn ghost" onClick={onClose}>Huỷ</button>
-            <button className="btn primary" disabled={!canSave} onClick={() => canSave && onSave(draft)}>{post.isNew ? 'Thêm bài' : 'Lưu'}</button>
+            <button className="btn primary" onClick={close}>{post.isNew ? 'Xong' : 'Đóng'}</button>
           </div>
         </div>
       </div>

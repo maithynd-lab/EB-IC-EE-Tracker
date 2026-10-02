@@ -173,6 +173,18 @@ function ProjectGantt({ range, tasks, tags, members, onOpen, onNewProject, onNew
   const memberOf = (id) => members.find((m) => m.id === id) || members[0];
   const [collapsed, setCollapsed] = React.useState({});
   const toggleRow = (id) => setCollapsed((c) => ({ ...c, [id]: !c[id] }));
+  const innerRef = React.useRef(null);
+  const [guide, setGuide] = React.useState(null);
+  const showGuide = (e) => {
+    const inner = innerRef.current;
+    const rowEl = e.currentTarget.closest('.gt-row');
+    if (!inner || !rowEl) return;
+    const ir = inner.getBoundingClientRect();
+    const mr = e.currentTarget.getBoundingClientRect();
+    const rr = rowEl.getBoundingClientRect();
+    setGuide({ x: mr.left + mr.width / 2 - ir.left, mid: rr.top - ir.top + rr.height / 2 });
+  };
+  const hideGuide = () => setGuide(null);
 
   // Mỗi tag = 1 project. `all` = toàn bộ task của project, `tasks` = task liên quan tháng đang xem
   // (deadline rơi vào tháng này, hoặc đã xong trong tháng này dù deadline ở tháng khác — task đã
@@ -274,7 +286,13 @@ function ProjectGantt({ range, tasks, tags, members, onOpen, onNewProject, onNew
 
         <div className="gt-frame">
           <div className="gt-scroll">
-            <div className="gt-inner">
+            <div className="gt-inner" ref={innerRef}>
+              {guide && (
+                <>
+                  <div className="gt-guide-v" style={{ left: guide.x, height: guide.mid }} />
+                  <div className="gt-guide-h" style={{ top: guide.mid, width: guide.x }} />
+                </>
+              )}
               <div className="gt-row gt-head">
                 <div className="gt-name gt-head-name">Project / Task</div>
                 <div className="gt-track gt-days">
@@ -356,6 +374,7 @@ function ProjectGantt({ range, tasks, tags, members, onOpen, onNewProject, onNew
                                   <button className={'gt-owner' + (t.done ? ' done' : '') + (overdue ? ' over' : '')}
                                           style={{ left: (pl.left + pl.width / 2) + '%', '--c': m.color }}
                                           data-tip={`${t.title} · ${m.name} · deadline ${t.deadline}`}
+                                          onMouseEnter={showGuide} onMouseLeave={hideGuide}
                                           onClick={() => onOpen && onOpen(t)}>
                                     <i style={{ background: m.color }}>{m.icon || m.name.charAt(0)}</i>
                                   </button>

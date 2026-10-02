@@ -161,6 +161,11 @@
   .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 14px 20px;
     border-bottom:1px solid var(--line)}
   .modal-owner{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700}
+  .save-ind{margin-left:auto;margin-right:10px;font-size:11px;font-weight:700;color:var(--muted);
+    white-space:nowrap;display:flex;align-items:center;gap:3px}
+  .save-ind.saving{color:#D97706}
+  .save-ind.saved{color:#16A34A}
+  .save-ind.error{color:#DC2626}
   .modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:17px;overflow:visible}
   .title-input{border:0;border-bottom:2px solid var(--line);padding:4px 2px 9px;font:inherit;
     font-size:19px;font-weight:700;letter-spacing:-.02em;outline:none;color:var(--ink);background:transparent}
@@ -216,6 +221,11 @@
   .due-btn.set{color:var(--ink)}
   .due-btn.set svg{color:var(--accent)}
   .due-btn.over{color:#E5484D}.due-btn.over svg{color:#E5484D}
+
+  select.sel{display:block;width:100%;border:1px solid var(--line);border-radius:11px;
+    padding:9px 14px;background:#FBFBFA;font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer;transition:.14s}
+  select.sel:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+  select.sel:focus{outline:none;border-color:var(--accent)}
 
   /* calendar */
   .cal{position:absolute;top:calc(100% + 8px);left:0;z-index:30;width:262px;background:#fff;
@@ -749,7 +759,9 @@
 
   .gt-frame{background:var(--panel);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden}
   .gt-scroll{overflow-x:auto}
-  .gt-inner{min-width:1100px}
+  .gt-inner{min-width:1100px;position:relative}
+  .gt-guide-v{position:absolute;top:0;width:0;border-left:1px dashed rgba(124,58,237,.5);pointer-events:none;z-index:6}
+  .gt-guide-h{position:absolute;left:0;height:0;border-top:1px dashed rgba(124,58,237,.5);pointer-events:none;z-index:6}
   .gt-row{display:grid;grid-template-columns:300px 1fr;align-items:stretch;border-bottom:1px solid var(--line)}
   .gt-row:last-child{border-bottom:0}
   .gt-name{display:flex;align-items:center;gap:8px;padding:0 14px;min-height:44px;
@@ -779,12 +791,12 @@
   .gt-pcount{font-size:10.5px;font-weight:700;color:var(--muted);flex-shrink:0}
   .gt-pct{margin-left:auto;flex-shrink:0;position:relative;width:60px;height:6px;border-radius:99px;
     background:rgba(20,22,30,.08);display:block}
-  .gt-pct i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:var(--c);display:block}
+  .gt-pct i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:color-mix(in srgb,var(--c) 78%,#fff);display:block}
   .gt-pct b{position:absolute;right:0;top:-15px;font-size:9.5px;font-weight:800;color:var(--muted)}
 
   .gt-rollup{position:absolute;top:50%;transform:translateY(-50%);height:17px;border-radius:99px;
     background:var(--c);opacity:.18;box-shadow:inset 0 0 0 1px var(--c)}
-  .gt-pbar{position:absolute;top:50%;transform:translateY(-50%);height:9px;border-radius:99px;background:var(--c)}
+  .gt-pbar{position:absolute;top:50%;transform:translateY(-50%);height:9px;border-radius:99px;background:color-mix(in srgb,var(--c) 78%,#fff)}
   .gt-event{position:absolute;top:50%;transform:translateY(-50%);text-align:center;font-size:13px;
     color:#fff;line-height:1;pointer-events:none;z-index:2;
     text-shadow:0 0 2px rgba(20,22,30,.55),0 1px 2px rgba(20,22,30,.4)}
@@ -873,7 +885,7 @@
   .pjc-chip.over{background:rgba(239,68,68,.1);color:#DC2626}
   .pjc-prog{display:flex;align-items:center;gap:9px}
   .pjc-bar{flex:1;height:7px;border-radius:99px;background:rgba(20,22,30,.08);position:relative;display:block}
-  .pjc-bar i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:var(--c);display:block}
+  .pjc-bar i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:color-mix(in srgb,var(--c) 78%,#fff);display:block}
   .pjc-prog b{font-size:11.5px;font-weight:800;color:var(--muted);min-width:30px;text-align:right}
   .pjc-foot{display:flex;align-items:center;gap:10px}
   .pjc-count{font-size:11px;font-weight:700;color:var(--muted)}
